@@ -219,7 +219,7 @@ fn run_git_with_pty(
     Ok(status.success())
 }
 
-/// Run a git command on Windows (without PTY, but with --progress flag)
+/// Run a git command on Windows using ConPTY for proper progress output
 /// Uses SetThreadExecutionState to prevent system sleep during long operations
 /// When detect_stages is false, always uses default_stage instead of detecting from output
 #[cfg(target_os = "windows")]
@@ -231,6 +231,8 @@ fn run_git_with_pty(
     default_stage: &str,
     detect_stages: bool,
 ) -> Result<bool, String> {
+    use conpty::spawn;
+    use std::io::Read as _;
     use windows::Win32::System::Power::{SetThreadExecutionState, ES_CONTINUOUS, ES_SYSTEM_REQUIRED, ES_DISPLAY_REQUIRED};
 
     // Prevent system sleep during the operation
@@ -238,36 +240,119 @@ fn run_git_with_pty(
         SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
     }
 
-    let mut cmd = Command::new(git_path)
-        .args(args)
-        .current_dir(working_dir)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+    // Build full command line
+    let git_args: Vec<String> = args.iter().map(|s| {
+        if s.contains(' ') {
+            format!("\"{}\"", s)
+        } else {
+            s.to_string()
+        }
+    }).collect();
+
+    let command_line = format!("{} {}", git_path, git_args.join(" "));
+
+    // Spawn process using ConPTY (Windows Pseudo Console)
+    // This makes git think it's connected to a real terminal
+    let mut proc = spawn(&command_line)
         .map_err(|e| {
-            // Restore normal sleep behavior on error
             unsafe { SetThreadExecutionState(ES_CONTINUOUS); }
-            format!("Failed to start command: {}", e)
+            format!("Failed to spawn process with ConPTY: {}", e)
         })?;
 
-    if let Some(stderr) = cmd.stderr.take() {
-        read_output_with_progress(stderr, window, default_stage, detect_stages);
+    // Set working directory isn't directly supported by conpty::spawn,
+    // so we need to cd first
+    // Actually, let's use a different approach - build a cmd command that cd's first
+    drop(proc);
+
+    let cd_and_run = format!("cd /d \"{}\" && {}", working_dir.display(), command_line);
+    let mut proc = spawn(&format!("cmd /c {}", cd_and_run))
+        .map_err(|e| {
+            unsafe { SetThreadExecutionState(ES_CONTINUOUS); }
+            format!("Failed to spawn process with ConPTY: {}", e)
+        })?;
+
+    // Read output from the PTY
+    let mut output = proc.output().map_err(|e| {
+        unsafe { SetThreadExecutionState(ES_CONTINUOUS); }
+        format!("Failed to get process output: {}", e)
+    })?;
+
+    let mut buffer = [0u8; 1];
+    let mut line_buffer = Vec::new();
+
+    loop {
+        match output.read(&mut buffer) {
+            Ok(0) => break, // EOF
+            Ok(_) => {
+                let byte = buffer[0];
+                if byte == b'\r' || byte == b'\n' {
+                    if !line_buffer.is_empty() {
+                        if let Ok(line) = String::from_utf8(line_buffer.clone()) {
+                            let line = line.trim();
+                            if !line.is_empty() {
+                                let (detected_stage, percent) = detect_git_stage(line);
+                                let stage = if detect_stages {
+                                    detected_stage.unwrap_or(default_stage)
+                                } else {
+                                    default_stage
+                                };
+
+                                let _ = window.emit(
+                                    "install-progress",
+                                    ProgressPayload {
+                                        stage: stage.to_string(),
+                                        message: line.to_string(),
+                                        percent,
+                                    },
+                                );
+                            }
+                        }
+                        line_buffer.clear();
+                    }
+                } else {
+                    line_buffer.push(byte);
+                }
+            }
+            Err(_) => break,
+        }
     }
 
-    let status = cmd
-        .wait()
-        .map_err(|e| {
-            // Restore normal sleep behavior on error
-            unsafe { SetThreadExecutionState(ES_CONTINUOUS); }
-            format!("Command failed: {}", e)
-        })?;
+    // Handle remaining data
+    if !line_buffer.is_empty() {
+        if let Ok(line) = String::from_utf8(line_buffer) {
+            let line = line.trim();
+            if !line.is_empty() {
+                let (detected_stage, percent) = detect_git_stage(line);
+                let stage = if detect_stages {
+                    detected_stage.unwrap_or(default_stage)
+                } else {
+                    default_stage
+                };
 
-    // Restore normal sleep behavior after command completes
+                let _ = window.emit(
+                    "install-progress",
+                    ProgressPayload {
+                        stage: stage.to_string(),
+                        message: line.to_string(),
+                        percent,
+                    },
+                );
+            }
+        }
+    }
+
+    // Wait for process to exit and check status
+    let success = proc.wait(None).map_err(|e| {
+        unsafe { SetThreadExecutionState(ES_CONTINUOUS); }
+        format!("Failed to wait for process: {}", e)
+    })?;
+
+    // Restore normal sleep behavior
     unsafe {
         SetThreadExecutionState(ES_CONTINUOUS);
     }
 
-    Ok(status.success())
+    Ok(success)
 }
 
 /// Run the git sparse checkout installation

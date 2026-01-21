@@ -25,4 +25,5 @@ regex = "1"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_System_Power"] }
+conpty = "0.5"
 
