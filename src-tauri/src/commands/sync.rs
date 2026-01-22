@@ -898,17 +898,23 @@ async fn run_full_sync(
             continue;
         }
 
-        // Get the "enabled" version of this path for comparison
-        let compare_path = if is_disabled_filename(get_filename(local_path)) {
-            get_enabled_path(local_path).unwrap_or_else(|| local_path.clone())
-        } else {
-            local_path.clone()
-        };
-
-        // If the enabled version doesn't exist in remote, delete the local file
-        if !remote_files.contains_key(&compare_path) {
-            files_to_delete.push(local_path.clone());
+        // First, check if the exact local path exists in remote
+        // (handles files like "-.png" that are actual repo files with dash in name)
+        if remote_files.contains_key(local_path) {
+            continue;
         }
+
+        // If this looks like a disabled file (dash prefix), check if enabled version exists
+        if is_disabled_filename(get_filename(local_path)) {
+            if let Some(enabled_path) = get_enabled_path(local_path) {
+                if remote_files.contains_key(&enabled_path) {
+                    continue; // This is a user-disabled version of a repo file
+                }
+            }
+        }
+
+        // File doesn't exist in remote (neither exact path nor enabled version)
+        files_to_delete.push(local_path.clone());
     }
 
     let download_count = files_to_download.len() as u32;
@@ -1070,17 +1076,23 @@ pub async fn run_verification_scan(
             continue;
         }
 
-        // Get the "enabled" version of this path for comparison
-        let compare_path = if is_disabled_filename(get_filename(local_path)) {
-            get_enabled_path(local_path).unwrap_or_else(|| local_path.clone())
-        } else {
-            local_path.clone()
-        };
-
-        // If the enabled version doesn't exist in remote, delete the local file
-        if !remote_files.contains_key(&compare_path) {
-            files_to_delete.push(local_path.clone());
+        // First, check if the exact local path exists in remote
+        // (handles files like "-.png" that are actual repo files with dash in name)
+        if remote_files.contains_key(local_path) {
+            continue;
         }
+
+        // If this looks like a disabled file (dash prefix), check if enabled version exists
+        if is_disabled_filename(get_filename(local_path)) {
+            if let Some(enabled_path) = get_enabled_path(local_path) {
+                if remote_files.contains_key(&enabled_path) {
+                    continue; // This is a user-disabled version of a repo file
+                }
+            }
+        }
+
+        // File doesn't exist in remote (neither exact path nor enabled version)
+        files_to_delete.push(local_path.clone());
     }
 
     let has_discrepancies = !files_to_download.is_empty() || !files_to_delete.is_empty();
