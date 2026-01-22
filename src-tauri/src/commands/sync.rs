@@ -136,18 +136,19 @@ pub async fn get_latest_commit() -> Result<String, String> {
     Ok(commit.sha)
 }
 
-/// Fetch the GitHub tree for the sparse path
-async fn fetch_github_tree() -> Result<(HashMap<String, String>, String), String> {
-    let client = Client::new();
-
-    // First get the latest commit SHA
-    let commit_sha = get_latest_commit().await?;
-
-    // Fetch the tree recursively
-    let url = format!(
-        "https://api.github.com/repos/{}/{}/git/trees/{}?recursive=1",
-        REPO_OWNER, REPO_NAME, commit_sha
-    );
+/// Fetch a single tree from GitHub API
+async fn fetch_tree(client: &Client, tree_sha: &str, recursive: bool) -> Result<TreeResponse, String> {
+    let url = if recursive {
+        format!(
+            "https://api.github.com/repos/{}/{}/git/trees/{}?recursive=1",
+            REPO_OWNER, REPO_NAME, tree_sha
+        )
+    } else {
+        format!(
+            "https://api.github.com/repos/{}/{}/git/trees/{}",
+            REPO_OWNER, REPO_NAME, tree_sha
+        )
+    };
 
     let response = client
         .get(&url)
@@ -165,26 +166,87 @@ async fn fetch_github_tree() -> Result<(HashMap<String, String>, String), String
         ));
     }
 
-    let tree: TreeResponse = response
+    response
         .json()
         .await
-        .map_err(|e| format!("Failed to parse tree response: {}", e))?;
+        .map_err(|e| format!("Failed to parse tree response: {}", e))
+}
+
+/// Navigate to a subtree by path (e.g., "textures/SLUS-21214")
+async fn get_subtree_sha(client: &Client, root_sha: &str, path: &str) -> Result<String, String> {
+    let parts: Vec<&str> = path.split('/').collect();
+    let mut current_sha = root_sha.to_string();
+
+    for part in parts {
+        let tree = fetch_tree(client, &current_sha, false).await?;
+
+        let entry = tree.tree.iter()
+            .find(|e| e.path == part && e.entry_type == "tree")
+            .ok_or_else(|| format!("Path component '{}' not found in repository", part))?;
+
+        current_sha = entry.sha.clone();
+    }
+
+    Ok(current_sha)
+}
+
+/// Recursively fetch all files from a tree, handling truncation
+async fn fetch_tree_files_recursive(
+    client: &Client,
+    tree_sha: &str,
+    base_path: &str,
+    file_map: &mut HashMap<String, String>,
+) -> Result<(), String> {
+    let tree = fetch_tree(client, tree_sha, true).await?;
 
     if tree.truncated {
-        return Err("Repository tree is too large (truncated). Please use git clone instead.".to_string());
-    }
+        // Tree is truncated, need to fetch each subdirectory individually
+        let tree_non_recursive = fetch_tree(client, tree_sha, false).await?;
 
-    // Filter to only files within our sparse path and create a map of relative_path -> sha
-    let prefix = format!("{}/", SPARSE_PATH);
-    let mut file_map: HashMap<String, String> = HashMap::new();
+        for entry in tree_non_recursive.tree {
+            let entry_path = if base_path.is_empty() {
+                entry.path.clone()
+            } else {
+                format!("{}/{}", base_path, entry.path)
+            };
 
-    for entry in tree.tree {
-        if entry.entry_type == "blob" && entry.path.starts_with(&prefix) {
-            // Get the path relative to SLUS folder
-            let relative_path = entry.path.strip_prefix(&prefix).unwrap().to_string();
-            file_map.insert(relative_path, entry.sha);
+            if entry.entry_type == "blob" {
+                file_map.insert(entry_path, entry.sha);
+            } else if entry.entry_type == "tree" {
+                // Recursively fetch this subdirectory
+                Box::pin(fetch_tree_files_recursive(client, &entry.sha, &entry_path, file_map)).await?;
+            }
+        }
+    } else {
+        // Tree is complete, add all files
+        for entry in tree.tree {
+            if entry.entry_type == "blob" {
+                let entry_path = if base_path.is_empty() {
+                    entry.path
+                } else {
+                    format!("{}/{}", base_path, entry.path)
+                };
+                file_map.insert(entry_path, entry.sha);
+            }
         }
     }
+
+    Ok(())
+}
+
+/// Fetch the GitHub tree for the sparse path
+async fn fetch_github_tree() -> Result<(HashMap<String, String>, String), String> {
+    let client = Client::new();
+
+    // First get the latest commit SHA
+    let commit_sha = get_latest_commit().await?;
+
+    // Navigate to the SPARSE_PATH subtree to avoid fetching the entire repo
+    let subtree_sha = get_subtree_sha(&client, &commit_sha, SPARSE_PATH).await?;
+
+    // Now fetch all files from this subtree
+    let mut file_map: HashMap<String, String> = HashMap::new();
+    fetch_tree_files_recursive(&client, &subtree_sha, "", &mut file_map).await?;
 
     Ok((file_map, commit_sha))
 }
