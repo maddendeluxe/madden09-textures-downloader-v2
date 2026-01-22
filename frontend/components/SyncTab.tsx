@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import SyncProgress from "./SyncProgress";
-import VerificationDialog from "./VerificationDialog";
 
 interface SyncStatusResult {
   latest_commit_sha: string;
@@ -19,16 +18,6 @@ interface SyncResult {
   new_commit_sha: string;
 }
 
-interface VerificationFile {
-  path: string;
-  to_disabled: boolean;
-}
-
-interface VerificationResult {
-  files_to_download: VerificationFile[];
-  files_to_delete: string[];
-  has_discrepancies: boolean;
-}
 
 interface SyncProgressPayload {
   stage: string;
@@ -43,7 +32,7 @@ interface QuickCheckResult {
   counts_match: boolean;
 }
 
-type SyncStatus = "idle" | "checking" | "syncing" | "verifying" | "complete" | "error";
+type SyncStatus = "idle" | "checking" | "syncing" | "complete" | "error";
 type SyncMode = "incremental" | "full";
 
 interface SyncTabProps {
@@ -88,14 +77,10 @@ function SyncTab({
   const [syncMode, setSyncMode] = useState<SyncMode>("incremental");
   const [tokenInput, setTokenInput] = useState(githubToken || "");
   const [showToken, setShowToken] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
-  const [showVerificationDialog, setShowVerificationDialog] = useState(false);
-  const [isApplyingFixes, setIsApplyingFixes] = useState(false);
-  const [showOutput, setShowOutput] = useState(false);
+    const [showOutput, setShowOutput] = useState(false);
   const [tokenSectionExpanded, setTokenSectionExpanded] = useState(!githubToken);
   const [showTokenRequired, setShowTokenRequired] = useState(false);
   const [quickCheckResult, setQuickCheckResult] = useState<QuickCheckResult | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
 
   // Listen for sync progress events
   useEffect(() => {
@@ -191,84 +176,6 @@ function SyncTab({
     }
   };
 
-  const handleRunVerification = async () => {
-    if (!githubToken) {
-      setShowTokenRequired(true);
-      setTokenSectionExpanded(true);
-      return;
-    }
-
-    setIsVerifying(true);
-    setSyncStatus("verifying");
-    setProgressMessages([]);
-    setVerificationResult(null);
-    setErrorMessage(null);
-    setShowOutput(true);
-
-    try {
-      const verification = await invoke<VerificationResult>("run_verification_scan", {
-        texturesDir,
-        githubToken,
-      });
-
-      setVerificationResult(verification);
-
-      if (verification.has_discrepancies) {
-        setShowVerificationDialog(true);
-      } else {
-        setSyncStatus("complete");
-      }
-    } catch (e) {
-      setErrorMessage(`Verification failed: ${e}`);
-      setSyncStatus("error");
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleVerificationConfirm = async () => {
-    if (!verificationResult) return;
-
-    setIsApplyingFixes(true);
-    try {
-      const [downloaded, deleted] = await invoke<[number, number]>("apply_verification_fixes", {
-        texturesDir,
-        filesToDownload: verificationResult.files_to_download,
-        filesToDelete: verificationResult.files_to_delete,
-        githubToken,
-      });
-
-      // Show verification fix results
-      setSyncResult({
-        files_downloaded: downloaded,
-        files_deleted: deleted,
-        files_renamed: 0,
-        files_skipped: 0,
-        new_commit_sha: "",
-      });
-      setShowVerificationDialog(false);
-      setSyncStatus("complete");
-      // Re-run quick count check after fixes
-      const quickCheck = await invoke<QuickCheckResult>("run_quick_count_check", {
-        texturesDir,
-        githubToken,
-      });
-      setQuickCheckResult(quickCheck);
-    } catch (e) {
-      setErrorMessage(`Failed to apply verification fixes: ${e}`);
-      setSyncStatus("error");
-      setShowVerificationDialog(false);
-    } finally {
-      setIsApplyingFixes(false);
-    }
-  };
-
-  const handleVerificationCancel = () => {
-    // Skip verification fixes
-    setShowVerificationDialog(false);
-    setSyncStatus("idle");
-  };
-
   const handleSaveToken = () => {
     onTokenChange(tokenInput);
     if (tokenInput) {
@@ -278,21 +185,9 @@ function SyncTab({
 
   const isSyncing = syncStatus === "syncing";
   const isChecking = syncStatus === "checking";
-  const isVerifyingStatus = syncStatus === "verifying";
 
   return (
     <div className="space-y-4">
-      {/* Verification Dialog */}
-      {showVerificationDialog && verificationResult && (
-        <VerificationDialog
-          filesToDownload={verificationResult.files_to_download}
-          filesToDelete={verificationResult.files_to_delete}
-          onConfirm={handleVerificationConfirm}
-          onCancel={handleVerificationCancel}
-          isApplying={isApplyingFixes}
-        />
-      )}
-
       {/* GitHub API Token */}
       <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
         <button
@@ -458,31 +353,16 @@ function SyncTab({
       {/* Sync button */}
       <button
         onClick={handleRunSync}
-        disabled={!texturesDir || isSyncing || isChecking || isVerifyingStatus}
+        disabled={!texturesDir || isSyncing || isChecking}
         className={`
           w-full py-3 rounded-lg font-medium transition-all
-          ${isSyncing || isChecking || isVerifyingStatus
+          ${isSyncing || isChecking
             ? "bg-zinc-700 text-zinc-400 cursor-wait"
             : "bg-blue-600 hover:bg-blue-500 text-white"
           }
         `}
       >
         {isSyncing ? "Syncing..." : syncMode === "full" ? "Run Full Sync" : "Run Sync"}
-      </button>
-
-      {/* Verify Installation button */}
-      <button
-        onClick={handleRunVerification}
-        disabled={!texturesDir || isSyncing || isChecking || isVerifyingStatus}
-        className={`
-          w-full py-2 rounded-lg text-sm font-medium transition-all
-          ${isVerifyingStatus
-            ? "bg-zinc-700 text-zinc-400 cursor-wait"
-            : "bg-zinc-700 hover:bg-zinc-600 text-zinc-300"
-          }
-        `}
-      >
-        {isVerifyingStatus ? "Verifying..." : "Verify Installation"}
       </button>
 
       {/* Token required warning */}
@@ -512,13 +392,13 @@ function SyncTab({
       {showOutput && progressMessages.length > 0 && (
         <SyncProgress
           messages={progressMessages}
-          isComplete={!isSyncing && !isVerifyingStatus && syncResult !== null}
+          isComplete={!isSyncing && syncResult !== null}
           result={syncResult}
         />
       )}
 
       {/* Quick count check result */}
-      {quickCheckResult && !isSyncing && !isVerifyingStatus && (
+      {quickCheckResult && !isSyncing && (
         <div className={`p-3 rounded text-sm ${
           quickCheckResult.counts_match
             ? "bg-green-900/30 border border-green-800 text-green-300"
@@ -541,7 +421,7 @@ function SyncTab({
               </div>
               <p className="text-xs ml-6">
                 Local: {quickCheckResult.local_count} files, Repository: {quickCheckResult.remote_count} files.
-                Consider running "Verify Installation" to check for discrepancies.
+                Run "Full Sync" to fix discrepancies.
               </p>
             </div>
           )}
