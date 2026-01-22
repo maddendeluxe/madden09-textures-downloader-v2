@@ -122,25 +122,47 @@ fn normalize_line_endings(content: Vec<u8>) -> Vec<u8> {
     normalized
 }
 
-/// Compute git blob SHA for a file (same format git uses)
-/// Normalizes line endings for text files to match git's stored format
-fn compute_git_blob_sha(path: &Path) -> Result<String, String> {
-    let content = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
-
-    // For text files, normalize line endings (git stores with LF)
-    let content = if is_text_content(&content) {
-        normalize_line_endings(content)
-    } else {
-        content
-    };
-
+/// Compute git blob SHA for raw content
+fn compute_sha_for_content(content: &[u8]) -> String {
     let header = format!("blob {}\0", content.len());
-
     let mut hasher = Sha1::new();
     hasher.update(header.as_bytes());
-    hasher.update(&content);
+    hasher.update(content);
+    hex::encode(hasher.finalize())
+}
 
-    Ok(hex::encode(hasher.finalize()))
+/// Compute git blob SHA for a file (same format git uses)
+/// Returns both the raw SHA and normalized SHA for text files
+fn compute_git_blob_sha(path: &Path) -> Result<String, String> {
+    let content = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
+    Ok(compute_sha_for_content(&content))
+}
+
+/// Compute git blob SHA, trying both raw and normalized versions for text files
+/// Returns the SHA that matches the expected one, or raw SHA if no expected SHA provided
+fn compute_git_blob_sha_with_normalization(path: &Path, expected_sha: Option<&str>) -> Result<String, String> {
+    let content = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
+
+    // Compute raw SHA first
+    let raw_sha = compute_sha_for_content(&content);
+
+    // If no expected SHA or raw matches, return raw
+    if expected_sha.is_none() || expected_sha == Some(raw_sha.as_str()) {
+        return Ok(raw_sha);
+    }
+
+    // For text files, try normalized version
+    if is_text_content(&content) {
+        let normalized = normalize_line_endings(content);
+        let normalized_sha = compute_sha_for_content(&normalized);
+
+        if expected_sha == Some(normalized_sha.as_str()) {
+            return Ok(normalized_sha);
+        }
+    }
+
+    // Return raw SHA if nothing matched
+    Ok(raw_sha)
 }
 
 /// Check if a filename is a junk file that can be safely deleted during cleanup
@@ -838,9 +860,13 @@ async fn run_full_sync(
         }
 
         // Check normal path
-        if let Some(local_sha) = local_files.get(path) {
-            if local_sha == remote_sha {
-                continue; // Up to date
+        if local_files.contains_key(path) {
+            // File exists - check SHA with normalization support
+            let local_path = slus_path.join(path);
+            if let Ok(local_sha) = compute_git_blob_sha_with_normalization(&local_path, Some(remote_sha)) {
+                if &local_sha == remote_sha {
+                    continue; // Up to date (raw or normalized match)
+                }
             }
             files_to_download.push((path.clone(), false));
             continue;
@@ -848,9 +874,13 @@ async fn run_full_sync(
 
         // Check disabled version
         let disabled_path = get_disabled_path(path);
-        if let Some(local_sha) = local_files.get(&disabled_path) {
-            if local_sha == remote_sha {
-                continue; // Up to date (disabled)
+        if local_files.contains_key(&disabled_path) {
+            // Disabled file exists - check SHA with normalization support
+            let local_path = slus_path.join(&disabled_path);
+            if let Ok(local_sha) = compute_git_blob_sha_with_normalization(&local_path, Some(remote_sha)) {
+                if &local_sha == remote_sha {
+                    continue; // Up to date (disabled, raw or normalized match)
+                }
             }
             files_to_download.push((path.clone(), true)); // Download to disabled path
             continue;
@@ -983,6 +1013,7 @@ pub async fn run_verification_scan(
 
     // Find files that need to be downloaded (missing or hash mismatch)
     let mut files_to_download: Vec<VerificationFile> = Vec::new();
+    let slus_path = textures_path.join(SLUS_FOLDER);
 
     for (repo_path, repo_sha) in &remote_files {
         if should_skip_path(repo_path) {
@@ -990,9 +1021,13 @@ pub async fn run_verification_scan(
         }
 
         // Check if normal version exists and matches
-        if let Some(local_sha) = local_files.get(repo_path) {
-            if local_sha == repo_sha {
-                continue; // File exists and matches
+        if local_files.contains_key(repo_path) {
+            // File exists - check SHA with normalization support
+            let local_path = slus_path.join(repo_path);
+            if let Ok(local_sha) = compute_git_blob_sha_with_normalization(&local_path, Some(repo_sha)) {
+                if &local_sha == repo_sha {
+                    continue; // File exists and matches (raw or normalized)
+                }
             }
             // Hash mismatch - need to re-download
             files_to_download.push(VerificationFile {
@@ -1004,9 +1039,13 @@ pub async fn run_verification_scan(
 
         // Check if disabled version exists and matches
         let disabled_path = get_disabled_path(repo_path);
-        if let Some(local_sha) = local_files.get(&disabled_path) {
-            if local_sha == repo_sha {
-                continue; // Disabled version exists and matches
+        if local_files.contains_key(&disabled_path) {
+            // Disabled file exists - check SHA with normalization support
+            let local_path = slus_path.join(&disabled_path);
+            if let Ok(local_sha) = compute_git_blob_sha_with_normalization(&local_path, Some(repo_sha)) {
+                if &local_sha == repo_sha {
+                    continue; // Disabled version exists and matches (raw or normalized)
+                }
             }
             // Disabled version has wrong hash - re-download to disabled path
             files_to_download.push(VerificationFile {
