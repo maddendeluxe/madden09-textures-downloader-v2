@@ -7,11 +7,9 @@
 pub const APP_TITLE: &str = "NCAA NEXT Textures Downloader";
 
 /// Repository owner (GitHub username or organization)
-#[allow(dead_code)]
 pub const REPO_OWNER: &str = "ncaanext";
 
 /// Name of the texture mod repository
-#[allow(dead_code)]
 pub const REPO_NAME: &str = "ncaa-next-26";
 
 /// Full URL to the git repository

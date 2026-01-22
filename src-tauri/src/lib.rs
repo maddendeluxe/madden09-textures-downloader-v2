@@ -4,6 +4,11 @@ mod config;
 use commands::{
     backup_existing_folder, check_existing_folder, check_git_installed, cleanup_processes,
     delete_existing_folder, get_git_error, start_installation, validate_directory,
+    // State management
+    load_state, save_state, set_textures_path, mark_setup_complete,
+    update_last_sync_commit, set_initial_setup_done,
+    // Sync
+    get_latest_commit, run_sync, check_sync_status,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -20,6 +25,17 @@ pub fn run() {
             check_git_installed,
             get_git_error,
             start_installation,
+            // State management
+            load_state,
+            save_state,
+            set_textures_path,
+            mark_setup_complete,
+            update_last_sync_commit,
+            set_initial_setup_done,
+            // Sync
+            get_latest_commit,
+            run_sync,
+            check_sync_status,
         ])
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::Destroyed = event {
