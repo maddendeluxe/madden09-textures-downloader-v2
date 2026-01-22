@@ -5,6 +5,7 @@
 config.txt
 config-GITHUB.txt
 config-DEV.txt
+CLAUDE.md
 
 # Tauri/Rust build output
 src-tauri/target/

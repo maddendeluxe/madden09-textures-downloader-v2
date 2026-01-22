@@ -13,6 +13,7 @@ interface SyncProgressProps {
   result?: {
     files_downloaded: number;
     files_deleted: number;
+    files_renamed: number;
     files_skipped: number;
   } | null;
 }
@@ -21,8 +22,11 @@ const STAGE_LABELS: Record<string, string> = {
   fetching: "Fetching repository info...",
   scanning: "Scanning files...",
   comparing: "Comparing changes...",
+  syncing: "Processing changes...",
   downloading: "Downloading files...",
   deleting: "Removing old files...",
+  sync_complete: "Sync finished, verifying...",
+  verifying: "Verifying sync...",
   complete: "Sync complete!",
 };
 
@@ -103,8 +107,8 @@ function SyncProgress({ messages, isComplete, result }: SyncProgressProps) {
         </span>
       </div>
 
-      {/* Progress bar (only show when downloading/deleting) */}
-      {(currentStage === "downloading" || currentStage === "deleting") && lastMessage?.total && (
+      {/* Progress bar (only show when syncing/downloading/deleting/verifying) */}
+      {(currentStage === "syncing" || currentStage === "downloading" || currentStage === "deleting" || currentStage === "verifying") && lastMessage?.total && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-zinc-400">
             <span>{lastMessage.current} / {lastMessage.total} files</span>
@@ -154,7 +158,8 @@ function SyncProgress({ messages, isComplete, result }: SyncProgressProps) {
           <ul className="text-xs space-y-1">
             <li>Files downloaded: {result.files_downloaded}</li>
             <li>Files deleted: {result.files_deleted}</li>
-            <li>Files skipped (disabled/up-to-date): {result.files_skipped}</li>
+            {result.files_renamed > 0 && <li>Files renamed/moved: {result.files_renamed}</li>}
+            {result.files_skipped > 0 && <li>Files skipped: {result.files_skipped}</li>}
           </ul>
         </div>
       )}

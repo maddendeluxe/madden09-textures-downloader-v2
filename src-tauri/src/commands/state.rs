@@ -1,3 +1,4 @@
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -12,6 +13,13 @@ pub struct AppState {
     pub initial_setup_done: bool,
     /// SHA of the last synced commit
     pub last_sync_commit: Option<String>,
+    /// Timestamp of when the last sync was performed (ISO 8601 UTC)
+    pub last_sync_timestamp: Option<String>,
+    /// GitHub API token for higher rate limits
+    pub github_token: Option<String>,
+    /// Whether the user has acknowledged the sync disclaimer
+    #[serde(default)]
+    pub sync_disclaimer_acknowledged: bool,
 }
 
 /// Get the path to the state file
@@ -72,14 +80,16 @@ pub fn mark_setup_complete(app: AppHandle, commit_sha: String) -> Result<(), Str
     let mut state = load_state(app.clone())?;
     state.initial_setup_done = true;
     state.last_sync_commit = Some(commit_sha);
+    state.last_sync_timestamp = Some(Utc::now().to_rfc3339());
     save_state(app, state)
 }
 
-/// Update the last sync commit SHA
+/// Update the last sync commit SHA and timestamp
 #[tauri::command]
 pub fn update_last_sync_commit(app: AppHandle, commit_sha: String) -> Result<(), String> {
     let mut state = load_state(app.clone())?;
     state.last_sync_commit = Some(commit_sha);
+    state.last_sync_timestamp = Some(Utc::now().to_rfc3339());
     save_state(app, state)
 }
 
@@ -88,5 +98,21 @@ pub fn update_last_sync_commit(app: AppHandle, commit_sha: String) -> Result<(),
 pub fn set_initial_setup_done(app: AppHandle, done: bool) -> Result<(), String> {
     let mut state = load_state(app.clone())?;
     state.initial_setup_done = done;
+    save_state(app, state)
+}
+
+/// Set the GitHub API token
+#[tauri::command]
+pub fn set_github_token(app: AppHandle, token: String) -> Result<(), String> {
+    let mut state = load_state(app.clone())?;
+    state.github_token = if token.is_empty() { None } else { Some(token) };
+    save_state(app, state)
+}
+
+/// Set the sync disclaimer acknowledged flag
+#[tauri::command]
+pub fn set_sync_disclaimer_acknowledged(app: AppHandle, acknowledged: bool) -> Result<(), String> {
+    let mut state = load_state(app.clone())?;
+    state.sync_disclaimer_acknowledged = acknowledged;
     save_state(app, state)
 }

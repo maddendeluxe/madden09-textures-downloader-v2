@@ -4,11 +4,15 @@ import Header from "./components/Header";
 import TabButton from "./components/TabButton";
 import InstallTab from "./components/InstallTab";
 import SyncTab from "./components/SyncTab";
+import SyncDisclaimerDialog from "./components/SyncDisclaimerDialog";
 
 interface AppState {
   textures_path: string | null;
   initial_setup_done: boolean;
   last_sync_commit: string | null;
+  last_sync_timestamp: string | null;
+  github_token: string | null;
+  sync_disclaimer_acknowledged: boolean;
 }
 
 type Tab = "install" | "sync";
@@ -20,6 +24,10 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>("install");
   const [initialSetupDone, setInitialSetupDone] = useState(false);
   const [lastSyncCommit, setLastSyncCommit] = useState<string | null>(null);
+  const [lastSyncTimestamp, setLastSyncTimestamp] = useState<string | null>(null);
+  const [githubToken, setGithubToken] = useState<string | null>(null);
+  const [syncDisclaimerAcknowledged, setSyncDisclaimerAcknowledged] = useState(false);
+  const [showSyncDisclaimer, setShowSyncDisclaimer] = useState(false);
   const [stateLoaded, setStateLoaded] = useState(false);
 
   // Load saved state on mount
@@ -32,10 +40,17 @@ function App() {
         }
         setInitialSetupDone(state.initial_setup_done);
         setLastSyncCommit(state.last_sync_commit);
+        setLastSyncTimestamp(state.last_sync_timestamp);
+        setGithubToken(state.github_token);
+        setSyncDisclaimerAcknowledged(state.sync_disclaimer_acknowledged || false);
 
         // If setup is done, default to sync tab
         if (state.initial_setup_done) {
           setActiveTab("sync");
+          // Show disclaimer if not yet acknowledged
+          if (!state.sync_disclaimer_acknowledged) {
+            setShowSyncDisclaimer(true);
+          }
         }
       } catch (e) {
         console.error("Failed to load state:", e);
@@ -79,6 +94,7 @@ function App() {
       await invoke("mark_setup_complete", { commitSha });
       setInitialSetupDone(true);
       setLastSyncCommit(commitSha);
+      setLastSyncTimestamp(new Date().toISOString());
     } catch (e) {
       console.error("Failed to mark setup complete:", e);
     }
@@ -89,6 +105,7 @@ function App() {
     try {
       await invoke("update_last_sync_commit", { commitSha });
       setLastSyncCommit(commitSha);
+      setLastSyncTimestamp(new Date().toISOString());
     } catch (e) {
       console.error("Failed to update sync commit:", e);
     }
@@ -114,6 +131,37 @@ function App() {
     }
   };
 
+  // Handle GitHub token change
+  const handleTokenChange = async (token: string) => {
+    try {
+      await invoke("set_github_token", { token });
+      setGithubToken(token || null);
+    } catch (e) {
+      console.error("Failed to save GitHub token:", e);
+    }
+  };
+
+  // Handle tab change - show disclaimer when entering sync tab for first time
+  const handleTabChange = (tab: Tab) => {
+    if (tab === "sync" && !syncDisclaimerAcknowledged) {
+      setShowSyncDisclaimer(true);
+    }
+    setActiveTab(tab);
+  };
+
+  // Handle disclaimer acknowledgment
+  const handleDisclaimerAcknowledge = async (dontShowAgain: boolean) => {
+    setShowSyncDisclaimer(false);
+    if (dontShowAgain) {
+      setSyncDisclaimerAcknowledged(true);
+      try {
+        await invoke("set_sync_disclaimer_acknowledged", { acknowledged: true });
+      } catch (e) {
+        console.error("Failed to save disclaimer preference:", e);
+      }
+    }
+  };
+
   if (!stateLoaded) {
     return (
       <div className="min-h-screen bg-zinc-900 text-zinc-100 flex items-center justify-center">
@@ -124,6 +172,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100 p-6 overflow-auto">
+      {/* Sync Disclaimer Dialog */}
+      {showSyncDisclaimer && (
+        <SyncDisclaimerDialog onAcknowledge={handleDisclaimerAcknowledge} />
+      )}
+
       <div className="max-w-xl mx-auto space-y-6">
         <Header />
 
@@ -132,12 +185,12 @@ function App() {
           <TabButton
             label="Install"
             isActive={activeTab === "install"}
-            onClick={() => setActiveTab("install")}
+            onClick={() => handleTabChange("install")}
           />
           <TabButton
             label="Sync"
             isActive={activeTab === "sync"}
-            onClick={() => setActiveTab("sync")}
+            onClick={() => handleTabChange("sync")}
             disabled={!initialSetupDone}
           />
         </div>
@@ -184,7 +237,10 @@ function App() {
               <SyncTab
                 texturesDir={texturesDir}
                 lastSyncCommit={lastSyncCommit}
+                lastSyncTimestamp={lastSyncTimestamp}
+                githubToken={githubToken}
                 onSyncComplete={handleSyncComplete}
+                onTokenChange={handleTokenChange}
               />
             </>
           )}

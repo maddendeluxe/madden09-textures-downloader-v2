@@ -2,20 +2,32 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import SyncProgress from "./SyncProgress";
+import VerificationDialog from "./VerificationDialog";
 
 interface SyncStatusResult {
   latest_commit_sha: string;
-  files_to_download: number;
-  files_to_delete: number;
-  files_up_to_date: number;
-  is_up_to_date: boolean;
+  latest_commit_date: string;
+  last_sync_commit: string | null;
+  has_changes: boolean;
 }
 
 interface SyncResult {
   files_downloaded: number;
   files_deleted: number;
+  files_renamed: number;
   files_skipped: number;
   new_commit_sha: string;
+}
+
+interface VerificationFile {
+  path: string;
+  to_disabled: boolean;
+}
+
+interface VerificationResult {
+  files_to_download: VerificationFile[];
+  files_to_delete: string[];
+  has_discrepancies: boolean;
 }
 
 interface SyncProgressPayload {
@@ -26,19 +38,56 @@ interface SyncProgressPayload {
 }
 
 type SyncStatus = "idle" | "checking" | "syncing" | "complete" | "error";
+type SyncMode = "incremental" | "full";
 
 interface SyncTabProps {
   texturesDir: string;
   lastSyncCommit: string | null;
+  lastSyncTimestamp: string | null;
+  githubToken: string | null;
   onSyncComplete: (commitSha: string) => void;
+  onTokenChange: (token: string) => void;
 }
 
-function SyncTab({ texturesDir, lastSyncCommit, onSyncComplete }: SyncTabProps) {
+// Format ISO date string to human-readable format
+function formatDate(isoDate: string | null): string {
+  if (!isoDate) return "Unknown";
+  try {
+    const date = new Date(isoDate);
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "Unknown";
+  }
+}
+
+function SyncTab({
+  texturesDir,
+  lastSyncCommit,
+  lastSyncTimestamp,
+  githubToken,
+  onSyncComplete,
+  onTokenChange,
+}: SyncTabProps) {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [statusResult, setStatusResult] = useState<SyncStatusResult | null>(null);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [progressMessages, setProgressMessages] = useState<SyncProgressPayload[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [syncMode, setSyncMode] = useState<SyncMode>("incremental");
+  const [tokenInput, setTokenInput] = useState(githubToken || "");
+  const [showToken, setShowToken] = useState(false);
+  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
+  const [showVerificationDialog, setShowVerificationDialog] = useState(false);
+  const [isApplyingFixes, setIsApplyingFixes] = useState(false);
+  const [pendingSyncResult, setPendingSyncResult] = useState<SyncResult | null>(null);
+  const [showOutput, setShowOutput] = useState(false);
+  const [tokenSectionExpanded, setTokenSectionExpanded] = useState(!githubToken);
 
   // Listen for sync progress events
   useEffect(() => {
@@ -60,21 +109,35 @@ function SyncTab({ texturesDir, lastSyncCommit, onSyncComplete }: SyncTabProps) 
     if (texturesDir) {
       checkSyncStatus();
     }
-  }, [texturesDir]);
+  }, [texturesDir, githubToken]);
 
-  const checkSyncStatus = async () => {
+  // Update token input when prop changes
+  useEffect(() => {
+    setTokenInput(githubToken || "");
+    // Collapse section when token is set
+    if (githubToken) {
+      setTokenSectionExpanded(false);
+    }
+  }, [githubToken]);
+
+  const checkSyncStatus = async (overrideCommit?: string) => {
     setSyncStatus("checking");
     setErrorMessage(null);
 
     try {
-      const result = await invoke<SyncStatusResult>("check_sync_status", {
-        texturesDir,
-      });
+      const params = {
+        texturesDir: texturesDir || "",
+        lastSyncCommit: overrideCommit || lastSyncCommit || null,
+        githubToken: githubToken || null,
+      };
+
+      const result = await invoke<SyncStatusResult>("check_sync_status", params);
       setStatusResult(result);
-      setSyncStatus("idle");
     } catch (e) {
+      console.error("checkSyncStatus error:", e);
       setErrorMessage(`Failed to check status: ${e}`);
-      setSyncStatus("error");
+    } finally {
+      setSyncStatus("idle");
     }
   };
 
@@ -82,20 +145,97 @@ function SyncTab({ texturesDir, lastSyncCommit, onSyncComplete }: SyncTabProps) 
     setSyncStatus("syncing");
     setProgressMessages([]);
     setSyncResult(null);
+    setVerificationResult(null);
     setErrorMessage(null);
+    setShowOutput(true);
 
     try {
+      // Run the sync
       const result = await invoke<SyncResult>("run_sync", {
         texturesDir,
+        lastSyncCommit,
+        githubToken,
+        fullSync: syncMode === "full",
       });
-      setSyncResult(result);
-      onSyncComplete(result.new_commit_sha);
-      // Refresh status after sync
-      await checkSyncStatus();
+
+      // Store the sync result temporarily
+      setPendingSyncResult(result);
+
+      // Run verification scan
+      const verification = await invoke<VerificationResult>("run_verification_scan", {
+        texturesDir,
+        githubToken,
+      });
+
+      setVerificationResult(verification);
+
+      if (verification.has_discrepancies) {
+        // Show confirmation dialog
+        setShowVerificationDialog(true);
+      } else {
+        // No discrepancies - complete the sync
+        setSyncResult(result);
+        onSyncComplete(result.new_commit_sha);
+        setSyncStatus("complete");
+        await checkSyncStatus(result.new_commit_sha);
+      }
     } catch (e) {
       setErrorMessage(`Sync failed: ${e}`);
       setSyncStatus("error");
     }
+  };
+
+  const handleVerificationConfirm = async () => {
+    if (!verificationResult || !pendingSyncResult) return;
+
+    setIsApplyingFixes(true);
+    try {
+      const [downloaded, deleted] = await invoke<[number, number]>("apply_verification_fixes", {
+        texturesDir,
+        filesToDownload: verificationResult.files_to_download,
+        filesToDelete: verificationResult.files_to_delete,
+        githubToken,
+      });
+
+      // Update the sync result with verification fixes
+      const finalResult: SyncResult = {
+        ...pendingSyncResult,
+        files_downloaded: pendingSyncResult.files_downloaded + downloaded,
+        files_deleted: pendingSyncResult.files_deleted + deleted,
+      };
+
+      setSyncResult(finalResult);
+      onSyncComplete(finalResult.new_commit_sha);
+      setShowVerificationDialog(false);
+      setSyncStatus("complete");
+      await checkSyncStatus(finalResult.new_commit_sha);
+    } catch (e) {
+      setErrorMessage(`Failed to apply verification fixes: ${e}`);
+      setSyncStatus("error");
+      setShowVerificationDialog(false);
+    } finally {
+      setIsApplyingFixes(false);
+      setPendingSyncResult(null);
+    }
+  };
+
+  const handleVerificationCancel = async () => {
+    // Skip verification fixes, just complete with sync result
+    if (pendingSyncResult) {
+      setSyncResult(pendingSyncResult);
+      onSyncComplete(pendingSyncResult.new_commit_sha);
+      setShowVerificationDialog(false);
+      setSyncStatus("complete");
+      await checkSyncStatus(pendingSyncResult.new_commit_sha);
+    } else {
+      setShowVerificationDialog(false);
+      setSyncStatus("complete");
+    }
+    setPendingSyncResult(null);
+  };
+
+  const handleSaveToken = () => {
+    onTokenChange(tokenInput);
   };
 
   const isSyncing = syncStatus === "syncing";
@@ -103,12 +243,87 @@ function SyncTab({ texturesDir, lastSyncCommit, onSyncComplete }: SyncTabProps) 
 
   return (
     <div className="space-y-4">
-      {/* Current status info */}
+      {/* Verification Dialog */}
+      {showVerificationDialog && verificationResult && (
+        <VerificationDialog
+          filesToDownload={verificationResult.files_to_download}
+          filesToDelete={verificationResult.files_to_delete}
+          onConfirm={handleVerificationConfirm}
+          onCancel={handleVerificationCancel}
+          isApplying={isApplyingFixes}
+        />
+      )}
+
+      {/* GitHub API Token */}
+      <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
+        <button
+          type="button"
+          onClick={() => setTokenSectionExpanded(!tokenSectionExpanded)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium text-zinc-300">GitHub API Token</h3>
+            {githubToken && !tokenSectionExpanded && (
+              <span className="text-xs text-green-400">configured</span>
+            )}
+          </div>
+          <svg
+            className={`h-4 w-4 text-zinc-400 transition-transform ${tokenSectionExpanded ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {tokenSectionExpanded && (
+          <div className="mt-3 space-y-3">
+            <p className="text-xs text-zinc-500">
+              Required. A free GitHub.com account is needed.
+              <a
+                href="https://github.com/settings/personal-access-tokens/new?name=NCAA+NEXT+Textures+Downloader&description=Token+for+syncing+textures&expires_in=365"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 ml-1"
+              >
+                Generate fine-grained token
+              </a>
+            </p>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <input
+                  type={showToken ? "text" : "password"}
+                  value={tokenInput}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxx"
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-600 rounded text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken(!showToken)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 text-xs"
+                >
+                  {showToken ? "Hide" : "Show"}
+                </button>
+              </div>
+              <button
+                onClick={handleSaveToken}
+                disabled={tokenInput === (githubToken || "")}
+                className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 disabled:bg-zinc-800 disabled:text-zinc-600 text-sm rounded transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Sync Status */}
       <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium text-zinc-300">Sync Status</h3>
           <button
-            onClick={checkSyncStatus}
+            onClick={() => checkSyncStatus()}
             disabled={isChecking || isSyncing}
             className="text-xs text-blue-400 hover:text-blue-300 disabled:opacity-50"
           >
@@ -119,21 +334,21 @@ function SyncTab({ texturesDir, lastSyncCommit, onSyncComplete }: SyncTabProps) 
         {statusResult && (
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-zinc-400">Latest commit:</span>
-              <span className="text-zinc-300 font-mono text-xs">
-                {statusResult.latest_commit_sha.slice(0, 7)}
+              <span className="text-zinc-400">Latest update:</span>
+              <span className="text-zinc-300 text-xs">
+                {formatDate(statusResult.latest_commit_date)}
               </span>
             </div>
-            {lastSyncCommit && (
+            {lastSyncTimestamp && (
               <div className="flex justify-between">
                 <span className="text-zinc-400">Last synced:</span>
-                <span className="text-zinc-300 font-mono text-xs">
-                  {lastSyncCommit.slice(0, 7)}
+                <span className="text-zinc-300 text-xs">
+                  {formatDate(lastSyncTimestamp)}
                 </span>
               </div>
             )}
             <div className="border-t border-zinc-700 pt-2 mt-2">
-              {statusResult.is_up_to_date ? (
+              {!statusResult.has_changes ? (
                 <div className="flex items-center gap-2 text-green-400">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -141,23 +356,11 @@ function SyncTab({ texturesDir, lastSyncCommit, onSyncComplete }: SyncTabProps) 
                   <span>Textures are up to date!</span>
                 </div>
               ) : (
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">Files to download:</span>
-                    <span className={statusResult.files_to_download > 0 ? "text-yellow-400" : "text-zinc-300"}>
-                      {statusResult.files_to_download}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">Files to delete:</span>
-                    <span className={statusResult.files_to_delete > 0 ? "text-red-400" : "text-zinc-300"}>
-                      {statusResult.files_to_delete}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-400">Files up to date:</span>
-                    <span className="text-zinc-300">{statusResult.files_up_to_date}</span>
-                  </div>
+                <div className="flex items-center gap-2 text-yellow-400">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>Updates available</span>
                 </div>
               )}
             </div>
@@ -175,21 +378,57 @@ function SyncTab({ texturesDir, lastSyncCommit, onSyncComplete }: SyncTabProps) 
         )}
       </div>
 
+      {/* Sync Mode */}
+      <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4 space-y-3">
+        <h3 className="text-sm font-medium text-zinc-300">Sync Mode</h3>
+        <div className="space-y-2">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="syncMode"
+              value="incremental"
+              checked={syncMode === "incremental"}
+              onChange={() => setSyncMode("incremental")}
+              disabled={isSyncing}
+              className="w-4 h-4 text-blue-500 bg-zinc-700 border-zinc-600"
+            />
+            <div>
+              <span className="text-sm text-zinc-200">Download New Content</span>
+              <span className="text-xs text-zinc-500 ml-2">(recommended)</span>
+              <p className="text-xs text-zinc-500">Only download changes since last sync</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="radio"
+              name="syncMode"
+              value="full"
+              checked={syncMode === "full"}
+              onChange={() => setSyncMode("full")}
+              disabled={isSyncing}
+              className="w-4 h-4 text-blue-500 bg-zinc-700 border-zinc-600"
+            />
+            <div>
+              <span className="text-sm text-zinc-200">Full Sync</span>
+              <p className="text-xs text-zinc-500">Compare all files against repository (slower)</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
       {/* Sync button */}
       <button
         onClick={handleRunSync}
-        disabled={!texturesDir || isSyncing || isChecking || statusResult?.is_up_to_date}
+        disabled={!texturesDir || isSyncing || isChecking}
         className={`
           w-full py-3 rounded-lg font-medium transition-all
-          ${statusResult?.is_up_to_date
-            ? "bg-zinc-700 text-zinc-500 cursor-not-allowed"
-            : isSyncing || isChecking
+          ${isSyncing || isChecking
             ? "bg-zinc-700 text-zinc-400 cursor-wait"
             : "bg-blue-600 hover:bg-blue-500 text-white"
           }
         `}
       >
-        {isSyncing ? "Syncing..." : statusResult?.is_up_to_date ? "Up to Date" : "Run Sync"}
+        {isSyncing ? "Syncing..." : syncMode === "full" ? "Run Full Sync" : "Run Sync"}
       </button>
 
       {/* Error message */}
@@ -199,23 +438,23 @@ function SyncTab({ texturesDir, lastSyncCommit, onSyncComplete }: SyncTabProps) 
         </div>
       )}
 
-      {/* Progress display */}
-      {(isSyncing || syncStatus === "complete") && progressMessages.length > 0 && (
+      {/* Progress display - stays visible after sync completes */}
+      {showOutput && progressMessages.length > 0 && (
         <SyncProgress
           messages={progressMessages}
-          isComplete={syncStatus === "complete"}
+          isComplete={!isSyncing && syncResult !== null}
           result={syncResult}
         />
       )}
 
-      {/* Info about disabled textures */}
+      {/* Info about sync behavior */}
       <div className="bg-zinc-900/50 border border-zinc-700 rounded-lg p-3 text-xs text-zinc-500">
         <p className="font-medium text-zinc-400 mb-1">About Sync</p>
         <ul className="space-y-1 list-disc list-inside">
           <li>Files in <code className="text-zinc-400">user-customs/</code> are never modified</li>
-          <li>Disabled textures (dash-prefixed) are kept disabled but updated</li>
-          <li>New textures from the repo are downloaded automatically</li>
-          <li>Removed textures are deleted (unless you have a disabled version)</li>
+          <li>Disabled textures (dash-prefixed) stay disabled but get updated</li>
+          <li>Deleted textures are removed (including disabled versions)</li>
+          <li>Renamed textures are moved (preserving disabled state)</li>
         </ul>
       </div>
     </div>
