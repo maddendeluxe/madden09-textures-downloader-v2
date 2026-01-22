@@ -8,7 +8,33 @@ use std::process::{Command, Stdio};
 #[cfg(target_os = "windows")]
 use std::process::Command;
 use std::fs;
+use std::sync::Mutex;
 use tauri::{Emitter, Window};
+
+// Track running process PIDs so we can kill them on app exit
+static RUNNING_PIDS: Mutex<Vec<u32>> = Mutex::new(Vec::new());
+
+/// Kill all tracked processes (called on app exit)
+pub fn cleanup_processes() {
+    if let Ok(pids) = RUNNING_PIDS.lock() {
+        for pid in pids.iter() {
+            #[cfg(target_os = "windows")]
+            {
+                // Use taskkill to kill the process tree
+                let _ = Command::new("taskkill")
+                    .args(["/F", "/T", "/PID", &pid.to_string()])
+                    .output();
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                // On Unix, kill the process group
+                let _ = Command::new("kill")
+                    .args(["-9", &pid.to_string()])
+                    .output();
+            }
+        }
+    }
+}
 
 #[derive(Clone, Serialize)]
 pub struct ProgressPayload {
@@ -293,6 +319,12 @@ fn run_git_with_pty(
             format!("Failed to spawn process with ConPTY: {}", e)
         })?;
 
+    // Track the PID so we can kill it if the app closes
+    let pid = proc.pid();
+    if let Ok(mut pids) = RUNNING_PIDS.lock() {
+        pids.push(pid);
+    }
+
     // Read output from the PTY in a separate thread
     // This prevents blocking if the PTY doesn't send EOF properly
     let output = proc.output().map_err(|e| {
@@ -351,6 +383,11 @@ fn run_git_with_pty(
         unsafe { SetThreadExecutionState(ES_CONTINUOUS); }
         format!("Failed to wait for process: {}", e)
     })?;
+
+    // Remove PID from tracking list
+    if let Ok(mut pids) = RUNNING_PIDS.lock() {
+        pids.retain(|&p| p != pid);
+    }
 
     // Drop proc to close the PTY, which should cause the reader to get EOF
     drop(proc);

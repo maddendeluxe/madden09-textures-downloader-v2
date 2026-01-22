@@ -2,8 +2,8 @@ mod commands;
 mod config;
 
 use commands::{
-    backup_existing_folder, check_existing_folder, check_git_installed, delete_existing_folder,
-    get_git_error, start_installation, validate_directory,
+    backup_existing_folder, check_existing_folder, check_git_installed, cleanup_processes,
+    delete_existing_folder, get_git_error, start_installation, validate_directory,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -21,6 +21,12 @@ pub fn run() {
             get_git_error,
             start_installation,
         ])
+        .on_window_event(|_window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                // Kill any running git processes when window is closed
+                cleanup_processes();
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
