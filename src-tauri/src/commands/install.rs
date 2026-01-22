@@ -83,6 +83,12 @@ pub fn get_git_error() -> String {
     }
 }
 
+/// Strip ANSI escape codes from a string
+fn strip_ansi_codes(s: &str) -> String {
+    let ansi_re = Regex::new(r"\x1b\[[0-9;]*[a-zA-Z]").unwrap();
+    ansi_re.replace_all(s, "").to_string()
+}
+
 /// Detect the stage and percentage from git output
 fn detect_git_stage(line: &str) -> (Option<&'static str>, Option<u32>) {
     let percent_re = Regex::new(r"(\d+)%").ok();
@@ -129,9 +135,9 @@ fn read_output_with_progress<R: IoRead>(reader: R, window: &Window, default_stag
                 if byte[0] == b'\r' || byte[0] == b'\n' {
                     if !buffer.is_empty() {
                         if let Ok(line) = String::from_utf8(buffer.clone()) {
-                            let line = line.trim();
+                            let line = strip_ansi_codes(line.trim());
                             if !line.is_empty() {
-                                let (detected_stage, percent) = detect_git_stage(line);
+                                let (detected_stage, percent) = detect_git_stage(&line);
                                 let stage = if detect_stages {
                                     detected_stage.unwrap_or(default_stage)
                                 } else {
@@ -142,7 +148,7 @@ fn read_output_with_progress<R: IoRead>(reader: R, window: &Window, default_stag
                                     "install-progress",
                                     ProgressPayload {
                                         stage: stage.to_string(),
-                                        message: line.to_string(),
+                                        message: line,
                                         percent,
                                     },
                                 );
@@ -161,9 +167,9 @@ fn read_output_with_progress<R: IoRead>(reader: R, window: &Window, default_stag
     // Handle any remaining data in buffer
     if !buffer.is_empty() {
         if let Ok(line) = String::from_utf8(buffer) {
-            let line = line.trim();
+            let line = strip_ansi_codes(line.trim());
             if !line.is_empty() {
-                let (detected_stage, percent) = detect_git_stage(line);
+                let (detected_stage, percent) = detect_git_stage(&line);
                 let stage = if detect_stages {
                     detected_stage.unwrap_or(default_stage)
                 } else {
@@ -174,7 +180,7 @@ fn read_output_with_progress<R: IoRead>(reader: R, window: &Window, default_stag
                     "install-progress",
                     ProgressPayload {
                         stage: stage.to_string(),
-                        message: line.to_string(),
+                        message: line,
                         percent,
                     },
                 );
