@@ -88,6 +88,7 @@ function SyncTab({
   const [pendingSyncResult, setPendingSyncResult] = useState<SyncResult | null>(null);
   const [showOutput, setShowOutput] = useState(false);
   const [tokenSectionExpanded, setTokenSectionExpanded] = useState(!githubToken);
+  const [showTokenRequired, setShowTokenRequired] = useState(false);
 
   // Listen for sync progress events
   useEffect(() => {
@@ -142,6 +143,14 @@ function SyncTab({
   };
 
   const handleRunSync = async () => {
+    // Check for GitHub token first
+    if (!githubToken) {
+      setShowTokenRequired(true);
+      setTokenSectionExpanded(true);
+      return;
+    }
+    setShowTokenRequired(false);
+
     setSyncStatus("syncing");
     setProgressMessages([]);
     setSyncResult(null);
@@ -236,6 +245,9 @@ function SyncTab({
 
   const handleSaveToken = () => {
     onTokenChange(tokenInput);
+    if (tokenInput) {
+      setShowTokenRequired(false);
+    }
   };
 
   const isSyncing = syncStatus === "syncing";
@@ -430,6 +442,22 @@ function SyncTab({
       >
         {isSyncing ? "Syncing..." : syncMode === "full" ? "Run Full Sync" : "Run Sync"}
       </button>
+
+      {/* Token required warning */}
+      {showTokenRequired && (
+        <div className="p-3 bg-yellow-900/30 border border-yellow-700 rounded text-yellow-300 text-sm">
+          A GitHub API key is required for syncing.{" "}
+          <a
+            href="https://github.com/settings/personal-access-tokens/new?name=NCAA+NEXT+Textures+Downloader&description=Token+for+syncing+textures&expires_in=365"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-400 hover:text-blue-300 underline"
+          >
+            Click here to generate an API token
+          </a>
+          .
+        </div>
+      )}
 
       {/* Error message */}
       {errorMessage && (
