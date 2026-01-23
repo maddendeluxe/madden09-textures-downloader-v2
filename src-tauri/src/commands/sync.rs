@@ -930,9 +930,10 @@ async fn run_full_sync(
         // Emit progress every 1000 files
         compared += 1;
         if compared % 1000 == 0 {
+            let percent = (compared * 100) / total_to_compare;
             let _ = window.emit("sync-progress", SyncProgressPayload {
                 stage: "comparing".to_string(),
-                message: format!("Comparing file hashes ({}/{})...", compared, total_to_compare),
+                message: format!("Comparing file hashes ({}/{}) {}%...", compared, total_to_compare, percent),
                 current: Some(compared as u32),
                 total: Some(total_to_compare as u32),
             });
