@@ -1687,7 +1687,7 @@ pub async fn execute_analyzed_sync(
     }
 
     // Cleanup empty directories
-    cleanup_empty_directories(&slus_path)?;
+    cleanup_empty_directories(&slus_path, &window);
 
     let _ = window.emit("sync-progress", SyncProgressPayload {
         stage: "complete".to_string(),
