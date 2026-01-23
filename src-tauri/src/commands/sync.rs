@@ -909,15 +909,34 @@ async fn run_full_sync(
 
     let _ = window.emit("sync-progress", SyncProgressPayload {
         stage: "scanning".to_string(),
-        message: format!("Found {} local files (excluding user-customs)", local_files.len()),
+        message: format!("Found {} local files (excluding user-customs)...", local_files.len()),
+        current: None,
+        total: None,
+    });
+
+    let _ = window.emit("sync-progress", SyncProgressPayload {
+        stage: "comparing".to_string(),
+        message: "Comparing file hashes (this may take a few minutes)...".to_string(),
         current: None,
         total: None,
     });
 
     // Determine files to download (new or modified)
     let mut files_to_download: Vec<(String, bool)> = Vec::new(); // (path, is_disabled)
+    let total_to_compare = remote_files.len();
+    let mut compared = 0;
 
     for (path, remote_sha) in &remote_files {
+        // Emit progress every 1000 files
+        compared += 1;
+        if compared % 1000 == 0 {
+            let _ = window.emit("sync-progress", SyncProgressPayload {
+                stage: "comparing".to_string(),
+                message: format!("Comparing file hashes ({}/{})...", compared, total_to_compare),
+                current: Some(compared as u32),
+                total: Some(total_to_compare as u32),
+            });
+        }
         if should_skip_path(path) {
             continue;
         }

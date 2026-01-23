@@ -146,6 +146,7 @@ function SyncTab({
     setSyncStatus("syncing");
     setProgressMessages([]);
     setSyncResult(null);
+    setQuickCheckResult(null);
     setErrorMessage(null);
     setShowOutput(true);
 
@@ -396,8 +397,8 @@ function SyncTab({
         />
       )}
 
-      {/* Quick count check result */}
-      {quickCheckResult && !isSyncing && (
+      {/* Quick count check result - only show after sync completes */}
+      {quickCheckResult && syncStatus === "complete" && (
         <div className={`p-3 rounded text-sm ${
           quickCheckResult.counts_match
             ? "bg-green-900/30 border border-green-800 text-green-300"
