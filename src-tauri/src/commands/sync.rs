@@ -1408,17 +1408,39 @@ pub struct SyncStatusResult {
 pub async fn run_quick_count_check(
     textures_dir: String,
     github_token: Option<String>,
+    window: Window,
 ) -> Result<QuickCheckResult, String> {
     let textures_path = PathBuf::from(&textures_dir);
 
+    let _ = window.emit("sync-progress", SyncProgressPayload {
+        stage: "counting".to_string(),
+        message: "Counting local files...".to_string(),
+        current: None,
+        total: None,
+    });
+
     // Count local files (fast, no SHA)
     let local_count = count_local_files(&textures_path)?;
+
+    let _ = window.emit("sync-progress", SyncProgressPayload {
+        stage: "counting".to_string(),
+        message: format!("Local: {} files. Fetching remote count...", local_count),
+        current: None,
+        total: None,
+    });
 
     // Fetch remote tree and count (excluding user-customs)
     let (remote_files, _) = fetch_github_tree(&github_token).await?;
     let remote_count = remote_files.keys().filter(|p| !should_skip_path(p)).count();
 
     let counts_match = local_count == remote_count;
+
+    let _ = window.emit("sync-progress", SyncProgressPayload {
+        stage: "counting".to_string(),
+        message: format!("Local: {} files, Remote: {} files. Match: {}", local_count, remote_count, counts_match),
+        current: None,
+        total: None,
+    });
 
     Ok(QuickCheckResult {
         local_count,

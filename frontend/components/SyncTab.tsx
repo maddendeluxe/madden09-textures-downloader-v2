@@ -160,12 +160,17 @@ function SyncTab({
       });
 
       // Run quick count check (fast, no SHA computation)
-      const quickCheck = await invoke<QuickCheckResult>("run_quick_count_check", {
-        texturesDir,
-        githubToken,
-      });
+      try {
+        const quickCheck = await invoke<QuickCheckResult>("run_quick_count_check", {
+          texturesDir,
+          githubToken,
+        });
+        setQuickCheckResult(quickCheck);
+      } catch (countError) {
+        console.error("Quick count check failed:", countError);
+        // Don't fail the whole sync if count check fails
+      }
 
-      setQuickCheckResult(quickCheck);
       setSyncResult(result);
       onSyncComplete(result.new_commit_sha);
       setSyncStatus("complete");
