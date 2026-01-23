@@ -146,7 +146,6 @@ function SyncTab({
     setSyncStatus("syncing");
     setProgressMessages([]);
     setSyncResult(null);
-    setVerificationResult(null);
     setErrorMessage(null);
     setShowOutput(true);
 
