@@ -402,8 +402,8 @@ function SyncTab({
         />
       )}
 
-      {/* Quick count check result - only show after sync completes */}
-      {quickCheckResult && syncStatus === "complete" && (
+      {/* Quick count check result - show when we have a result and sync is done (status is complete or idle after sync) */}
+      {quickCheckResult && syncResult && (syncStatus === "complete" || syncStatus === "idle") && (
         <div className={`p-3 rounded text-sm ${
           quickCheckResult.counts_match
             ? "bg-green-900/30 border border-green-800 text-green-300"
