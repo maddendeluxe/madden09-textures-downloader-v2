@@ -47,18 +47,13 @@ function SyncWarningDialog({
                 <code className="mx-1 px-1 bg-zinc-700 rounded">user-customs</code>
                 folder now before proceeding. The sync will replace them with the mod-default files.
               </p>
-              <div className="bg-zinc-900 border border-zinc-700 rounded p-2 max-h-40 overflow-y-auto">
+              <div className="bg-zinc-900 border border-zinc-700 rounded p-2 max-h-60 overflow-y-auto">
                 <ul className="text-xs text-zinc-300 font-mono space-y-0.5">
-                  {filesToReplace.slice(0, 100).map((file) => (
+                  {filesToReplace.map((file) => (
                     <li key={file.path} className="truncate">
                       {file.to_disabled ? `-${file.path}` : file.path}
                     </li>
                   ))}
-                  {filesToReplace.length > 100 && (
-                    <li className="text-zinc-500 italic">
-                      ...and {filesToReplace.length - 100} more files
-                    </li>
-                  )}
                 </ul>
               </div>
             </div>
@@ -77,16 +72,11 @@ function SyncWarningDialog({
                 <code className="mx-1 px-1 bg-zinc-700 rounded">user-customs</code>
                 folder now before proceeding. The sync will delete these files.
               </p>
-              <div className="bg-zinc-900 border border-zinc-700 rounded p-2 max-h-40 overflow-y-auto">
+              <div className="bg-zinc-900 border border-zinc-700 rounded p-2 max-h-60 overflow-y-auto">
                 <ul className="text-xs text-zinc-300 font-mono space-y-0.5">
-                  {filesToDelete.slice(0, 100).map((path) => (
+                  {filesToDelete.map((path) => (
                     <li key={path} className="truncate">{path}</li>
                   ))}
-                  {filesToDelete.length > 100 && (
-                    <li className="text-zinc-500 italic">
-                      ...and {filesToDelete.length - 100} more files
-                    </li>
-                  )}
                 </ul>
               </div>
             </div>
