@@ -320,7 +320,7 @@ function App() {
               </h2>
               {installerData?.total_size && (
                 <p className="text-sm text-zinc-400 mb-4">
-                  Estimated download size: {installerData.total_size}
+                  Estimated download size: {installerData.total_size} GB
                 </p>
               )}
               <InstallTab
