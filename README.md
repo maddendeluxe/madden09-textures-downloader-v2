@@ -121,8 +121,8 @@ A GitHub Personal Access Token is required for the sync features. Here's how to 
 3. Set expiration to 1 year (maximum)
 4. **No permissions are needed** - leave everything unchecked
 5. Click "Generate Token" and copy it
+6. Paste the token into the app's GitHub API Token field and click Save.
 
-Paste the token into the app's GitHub API Token field and click Save.
 ---
 
 ## License <a name="license">
