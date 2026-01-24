@@ -64,7 +64,7 @@ When using custom textures, you need to disable the mod's default texture so you
 1. **Keep the default texture in place** (don't delete it)
 2. **Prepend the filename with a dash** (e.g., rename `3a30272f374c5d47.png` to `-3a30272f374c5d47.png`)
 
-The dash prefix "disables" the texture - the emulator ignores it, but the app still recognizes it. When the mod team updates that texture, **your disabled version will be updated too**, keeping you in sync without overwriting your custom version.
+The dash prefix "disables" the texture - the emulator ignores it, but the app still recognizes it. When the mod team updates that texture, **your disabled version will be updated too**, keeping you in sync without breaking your custom texture.
 
 **Important**: If you delete the default texture instead of disabling it, the sync will re-download it and potentially cause conflicts with your custom texture.
 
@@ -74,17 +74,16 @@ The dash prefix "disables" the texture - the emulator ignores it, but the app st
 
 ### Windows
 
-1. Download the `.msi` installer from the [latest release](../../releases/latest)
+1. Download the Windows installer from the [latest release](../../releases/latest)
 2. Run the installer and follow the prompts
 3. Launch the app from your Start menu
 
-**Note**: Windows may show a SmartScreen warning because the app isn't signed with an expensive code signing certificate. Click "More info" then "Run anyway" to proceed.
 
 ### macOS
 
-1. Download the `.dmg` file from the [latest release](../../releases/latest)
+1. Download the Mac installer file from the [latest release](../../releases/latest)
 2. Open the DMG and drag the app to your Applications folder
-3. On first launch, right-click the app and select "Open" to bypass Gatekeeper
+3. On first launch, right-click the app and select "Open" to bypass Gatekeeper. In some cases you might need to go to Setting > Privacy & Security, scroll down, and allow the app to run in the Security settings section.
 
 **Requirements**: Git must be installed. If you don't have it, install Xcode Command Line Tools by running in Terminal:
 ```bash
@@ -101,7 +100,7 @@ xcode-select --install
 
 A GitHub Personal Access Token is required for the sync features. Here's how to get one:
 
-1. Go to [GitHub Token Settings](https://github.com/settings/personal-access-tokens/new)
+1. Create a free Github account, if needed, and generate a "Fine-Grained" API token. Go to Settings > Developer Settings > Personal Access Tokens > Fine-Grained Tokens > [Generate New Token](https://github.com/settings/personal-access-tokens/new?name=Textures+Downloader&description=Token+for+syncing+textures&expires_in=365).
 2. Give it a name (e.g., "PS2 Textures Downloader")
 3. Set expiration to 1 year (maximum)
 4. **No permissions are needed** - leave everything unchecked
@@ -112,10 +111,10 @@ Paste the token into the app's GitHub API Token field and click Save.
 #### Textures Directory
 
 Point the app to your emulator's `textures` folder. For PCSX2, this is typically:
-- **Windows**: `C:\Users\YourName\Documents\PCSX2\textures`
-- **macOS**: `~/Library/Application Support/PCSX2/textures`
+- **Windows**: `C:\PCSX2\textures`
+- **macOS**: `~/Library/Application Support/AetherSX2/textures`
 
-You can find the exact path in PCSX2 at Settings > Graphics > Texture Replacements.
+You can find the exact path in PCSX2 (or AetherSX2) at Settings > Graphics > Texture Replacements.
 
 ### First Time Setup
 
@@ -141,7 +140,7 @@ The installer uses Git sparse checkout to efficiently download only the texture 
 
 ## For Mod Teams: Customizing for Your Project
 
-This app is open-source and can be customized for any PS2 texture replacement mod. Fork the repository and modify the configuration files for your project.
+This app is open-source and can be customized for any PS2 texture replacement mod. Fork the repository and modify the configuration files for your project before building your apps.
 
 ### Configuration Files
 
@@ -207,8 +206,6 @@ your-repo/
     └── SLUS-XXXXX/
         └── replacements/
             ├── user-customs/     <- Users put custom textures here (never modified by sync)
-            ├── uniforms/
-            ├── general/
             └── ...
 ```
 
@@ -234,13 +231,13 @@ npm run tauri build
 
 The repository includes GitHub Actions workflows for automated builds. On each push to `main`, it builds:
 - Windows: `.msi` installer (with bundled MinGit)
-- macOS: `.dmg` installer (universal binary for Intel and Apple Silicon)
+- macOS: `.dmg` installer (universal binary for Intel and Apple Silicon - Git not included)
 
 Build artifacts are attached to each workflow run and can be downloaded from the Actions tab.
 
 ### User-Customs Folder
 
-Ensure your repository has a `user-customs` folder in the replacements directory. This folder should exist (can contain a `.gitkeep` file) so users have a designated safe space for their custom textures.
+Ensure your repository has a `user-customs` folder in the replacements directory. This folder should exist (can contain a `.gitkeep` file if there are no other files in it) so users have a designated safe space for their custom textures.
 
 ---
 

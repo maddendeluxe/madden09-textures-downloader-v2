@@ -1,8 +1,8 @@
 [package]
 name = "ps2-textures-downloader"
-version = "0.1.0"
-description = "PS2 Textures Downloader V2 - Download and manage PS2 texture packs"
-authors = ["NCAA Next"]
+version = "1.0.0"
+description = "PS2 Textures Downloader - Download and sync PS2 texture replacement packs"
+authors = ["Your Team"]
 edition = "2021"
 
 [lib]

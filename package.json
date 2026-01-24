@@ -1,7 +1,7 @@
 {
-  "name": "ps2-textures-downloader-v2",
+  "name": "ps2-textures-downloader",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
