@@ -239,6 +239,27 @@ Build artifacts are attached to each workflow run and can be downloaded from the
 
 Ensure your repository has a `user-customs` folder in the replacements directory. This folder should exist (can contain a `.gitkeep` file if there are no other files in it) so users have a designated safe space for their custom textures.
 
+### Syncing Your Fork with Upstream
+
+To pull bug fixes and new features from the upstream repository into your fork:
+
+```bash
+# Add upstream remote (one-time setup)
+git remote add upstream https://github.com/jd6-37/ps2-textures-downloader.git
+
+# Fetch and merge upstream changes
+git fetch upstream
+git merge upstream/main
+```
+
+If upstream has modified the config files, you'll get merge conflicts. Simply resolve them by keeping your project's values:
+
+1. Open the conflicted config file(s)
+2. Keep your customized values (reject the upstream template values)
+3. Complete the merge: `git add . && git commit`
+
+Config files are small and rarely change, so conflicts are infrequent and easy to resolve.
+
 ---
 
 ## License
