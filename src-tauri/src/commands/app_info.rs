@@ -1,13 +1,29 @@
 use crate::config::{REPO_NAME, REPO_OWNER};
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
+
+/// Custom deserializer that accepts both strings and numbers, converting to string
+fn string_or_number<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::String(s) => Ok(s),
+        Value::Number(n) => Ok(n.to_string()),
+        _ => Err(serde::de::Error::custom("expected string or number")),
+    }
+}
 
 /// Installer data from the mod repository
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstallerData {
     /// Minimum required version of this downloader app
+    #[serde(deserialize_with = "string_or_number")]
     pub min_downloader_app_version: String,
-    /// Total size of the texture pack (e.g., "8.5 GB")
+    /// Total size of the texture pack (e.g., "8.5 GB" or just "22.5")
+    #[serde(deserialize_with = "string_or_number")]
     pub total_size: String,
 }
 
