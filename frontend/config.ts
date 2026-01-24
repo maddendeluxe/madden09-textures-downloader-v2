@@ -5,10 +5,10 @@
 export const APP_TITLE = "NCAA NEXT Textures Downloader";
 
 /// Repository owner (GitHub username or organization)
-export const REPO_OWNER = "ncaanext";
+export const REPO_OWNER = "jd6-37";
 
 /// Repository name
-export const REPO_NAME = "ncaa-next-26";
+export const REPO_NAME = "test-ncaanext";
 
 /// The target folder name (typically the PS2 game identifier like SLUS-XXXXX)
 export const TARGET_FOLDER = "SLUS-21214";
