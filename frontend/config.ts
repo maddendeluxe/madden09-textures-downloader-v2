@@ -10,6 +10,9 @@ export const REPO_OWNER = "ncaanext";
 /// Repository name
 export const REPO_NAME = "ncaa-next-26";
 
+/// Full URL to the repository (for linking)
+export const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`;
+
 /// The target folder name (typically the PS2 game identifier like SLUS-XXXXX)
 export const TARGET_FOLDER = "SLUS-21214";
 

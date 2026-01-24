@@ -5,6 +5,8 @@ import TabButton from "./components/TabButton";
 import InstallTab from "./components/InstallTab";
 import SyncTab from "./components/SyncTab";
 import SyncDisclaimerDialog from "./components/SyncDisclaimerDialog";
+import AppOutdatedModal from "./components/AppOutdatedModal";
+import FetchErrorModal from "./components/FetchErrorModal";
 
 interface AppState {
   textures_path: string | null;
@@ -13,6 +15,16 @@ interface AppState {
   last_sync_timestamp: string | null;
   github_token: string | null;
   sync_disclaimer_acknowledged: boolean;
+}
+
+interface InstallerData {
+  min_downloader_app_version: string;
+  total_size: string;
+}
+
+interface InstallerDataResult {
+  data: InstallerData | null;
+  error: string | null;
 }
 
 type Tab = "install" | "sync";
@@ -29,6 +41,13 @@ function App() {
   const [syncDisclaimerAcknowledged, setSyncDisclaimerAcknowledged] = useState(false);
   const [showSyncDisclaimer, setShowSyncDisclaimer] = useState(false);
   const [stateLoaded, setStateLoaded] = useState(false);
+
+  // App version and installer data
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [installerData, setInstallerData] = useState<InstallerData | null>(null);
+  const [installerDataError, setInstallerDataError] = useState<string | null>(null);
+  const [isAppOutdated, setIsAppOutdated] = useState(false);
+  const [requiredVersion, setRequiredVersion] = useState<string>("");
 
   // Load saved state on mount
   useEffect(() => {
@@ -77,6 +96,78 @@ function App() {
     };
     checkGit();
   }, []);
+
+  // Fetch app version and installer data on mount
+  useEffect(() => {
+    const fetchAppInfo = async () => {
+      try {
+        // Get app version
+        const version = await invoke<string>("get_app_version");
+        setAppVersion(version);
+
+        // Fetch installer data from repo
+        const result = await invoke<InstallerDataResult>("fetch_installer_data");
+
+        if (result.error) {
+          setInstallerDataError(result.error);
+          return;
+        }
+
+        if (result.data) {
+          setInstallerData(result.data);
+
+          // Check version compatibility
+          const comparison = await invoke<number>("compare_versions", {
+            v1: version,
+            v2: result.data.min_downloader_app_version,
+          });
+
+          if (comparison < 0) {
+            // App is outdated
+            setIsAppOutdated(true);
+            setRequiredVersion(result.data.min_downloader_app_version);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch app info:", e);
+        setInstallerDataError(String(e));
+      }
+    };
+    fetchAppInfo();
+  }, []);
+
+  // Retry fetching installer data
+  const handleRetryFetch = async () => {
+    setInstallerDataError(null);
+    try {
+      const result = await invoke<InstallerDataResult>("fetch_installer_data");
+
+      if (result.error) {
+        setInstallerDataError(result.error);
+        return;
+      }
+
+      if (result.data) {
+        setInstallerData(result.data);
+
+        // Check version compatibility
+        if (appVersion) {
+          const comparison = await invoke<number>("compare_versions", {
+            v1: appVersion,
+            v2: result.data.min_downloader_app_version,
+          });
+
+          if (comparison < 0) {
+            setIsAppOutdated(true);
+            setRequiredVersion(result.data.min_downloader_app_version);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Retry failed:", e);
+      setInstallerDataError(String(e));
+    }
+  };
 
   // Save textures path when it changes
   const handleTexturesDirChange = async (dir: string) => {
@@ -162,7 +253,8 @@ function App() {
     }
   };
 
-  if (!stateLoaded) {
+  // Show loading while state or installer data is loading
+  if (!stateLoaded || (!installerData && !installerDataError)) {
     return (
       <div className="min-h-screen bg-zinc-900 text-zinc-100 flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-2 border-zinc-600 border-t-blue-400 rounded-full" />
@@ -170,15 +262,39 @@ function App() {
     );
   }
 
+  // Show outdated modal (blocking - no dismiss)
+  if (isAppOutdated && appVersion) {
+    return (
+      <div className="min-h-screen bg-zinc-900 text-zinc-100">
+        <AppOutdatedModal
+          currentVersion={appVersion}
+          requiredVersion={requiredVersion}
+        />
+      </div>
+    );
+  }
+
+  // Show fetch error modal (blocking until retry succeeds)
+  if (installerDataError && !installerData) {
+    return (
+      <div className="min-h-screen bg-zinc-900 text-zinc-100">
+        <FetchErrorModal
+          error={installerDataError}
+          onRetry={handleRetryFetch}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-zinc-900 text-zinc-100 p-6 overflow-auto">
+    <div className="min-h-screen bg-zinc-900 text-zinc-100 p-6 overflow-auto flex flex-col">
       {/* Sync Disclaimer Dialog */}
       {showSyncDisclaimer && (
         <SyncDisclaimerDialog onAcknowledge={handleDisclaimerAcknowledge} />
       )}
 
-      <div className="max-w-xl mx-auto space-y-6">
-        <Header />
+      <div className="max-w-xl mx-auto space-y-6 flex-1">
+        <Header version={appVersion || undefined} />
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-zinc-700">
@@ -199,9 +315,14 @@ function App() {
         <section className="bg-zinc-800 rounded-lg p-5 border border-zinc-700">
           {activeTab === "install" ? (
             <>
-              <h2 className="text-lg font-semibold text-zinc-100 mb-4 uppercase tracking-wide">
+              <h2 className="text-lg font-semibold text-zinc-100 mb-1 uppercase tracking-wide">
                 First Time Installation
               </h2>
+              {installerData?.total_size && (
+                <p className="text-sm text-zinc-400 mb-4">
+                  Estimated download size: {installerData.total_size}
+                </p>
+              )}
               <InstallTab
                 texturesDir={texturesDir}
                 setTexturesDir={handleTexturesDirChange}
@@ -246,6 +367,13 @@ function App() {
           )}
         </section>
       </div>
+
+      {/* Footer with version */}
+      {appVersion && (
+        <footer className="text-center text-xs text-zinc-600 mt-4 pb-2">
+          v{appVersion}
+        </footer>
+      )}
     </div>
   );
 }
