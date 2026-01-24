@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "PS2 Textures Downloader",
-  "version": "1.0.0",
-  "identifier": "com.yourteam.ps2-textures-downloader",
+  "productName": "NCAA NEXT Textures Downloader",
+  "version": "2.0.0",
+  "identifier": "com.ncaanext.textures-downloader",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "PS2 Textures Downloader",
+        "title": "NCAA NEXT Textures Downloader",
         "width": 600,
         "height": 700,
         "minWidth": 500,

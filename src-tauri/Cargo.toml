@@ -1,12 +1,12 @@
 [package]
-name = "ps2-textures-downloader"
-version = "1.0.0"
-description = "PS2 Textures Downloader - Download and sync PS2 texture replacement packs"
-authors = ["Your Team"]
+name = "ncaanext-textures-downloader"
+version = "2.0.0"
+description = "NCAA NEXT Textures Downloader - Download and sync NCAA NEXT texture packs"
+authors = ["NCAA NEXT"]
 edition = "2021"
 
 [lib]
-name = "ps2_textures_downloader_lib"
+name = "ncaanext_textures_downloader_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
