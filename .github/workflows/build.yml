@@ -38,12 +38,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Debug - Check mingit files
+      - name: Debug - Check mingit files (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
         run: |
           echo "=== Checking mingit folder ==="
-          ls -la src-tauri/mingit/ || echo "mingit folder not found"
-          ls -la src-tauri/mingit/x64/cmd/ || echo "x64/cmd folder not found"
-          du -sh src-tauri/mingit/x64/ || echo "Cannot calculate size"
+          if (Test-Path "src-tauri/mingit") { Get-ChildItem "src-tauri/mingit" } else { echo "mingit folder not found" }
+          if (Test-Path "src-tauri/mingit/x64/cmd") { Get-ChildItem "src-tauri/mingit/x64/cmd" } else { echo "x64/cmd folder not found" }
+          if (Test-Path "src-tauri/mingit/x64") { (Get-ChildItem "src-tauri/mingit/x64" -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB } else { echo "Cannot calculate size" }
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
