@@ -72,16 +72,33 @@ The dash prefix "disables" the texture - the emulator ignores it, but the app st
 
 ### Windows <a name="installation--windows"></a>
 
-1. Download the Windows installer from the [latest release](../../releases/latest)
-2. Run the installer and follow the prompts
-3. Launch the app from your Start menu
+1. Download `windows-portable.zip` from the [latest release](../../releases/latest)
+2. Create a folder on your computer where you want to keep the app (e.g., `C:\Apps\TexturesDownloader\`)
+3. Extract the contents of the zip file into that folder
+4. Run the `.exe` file to launch the app
 
+**Note**: The app includes a bundled copy of Git (MinGit), so you don't need to install Git separately.
+
+#### Updating the App (Windows)
+
+1. Download the new `windows-portable.zip` from the latest release
+2. Extract and overwrite the existing `.exe` file and `resources` folder in your app folder
+3. Your settings (including GitHub API token) are stored separately and will be preserved
 
 ### macOS <a name="installation--macos"></a>
 
 1. Download the Mac installer file from the [latest release](../../releases/latest)
 2. Open the DMG and drag the app to your Applications folder
 3. On first launch, right-click the app and select "Open" to bypass Gatekeeper. In some cases you might need to go to Setting > Privacy & Security, scroll down, and allow the app to run in the Security settings section.
+
+**Requirements**: Git must be installed. If you don't have it, install Xcode Command Line Tools by running in Terminal:
+```bash
+xcode-select --install
+```
+
+#### Updating the App (macOS)
+
+Simply download the new `.dmg` and drag the app to your Applications folder, replacing the old version. Your settings are stored in your user Library folder and will be preserved.
 
 ---
 
@@ -112,7 +129,158 @@ xcode-select --install
 
 **Warning Dialogs**: When running a Full Sync, if files will be replaced or deleted, you'll see a warning dialog listing the affected files. This gives you a chance to back up any custom textures to the `user-customs` folder before proceeding.
 
-#### GitHub API Token (Required for Sync)
+---
+
+## For Mod Teams: Customizing for Your Project
+
+This app is open-source and can be customized for any PS2 texture replacement mod. Fork the repository and modify the configuration files for your project before building your apps.
+
+### Configuration Files
+
+You need to update two configuration files:
+
+#### Backend: `src-tauri/src/config.rs`
+
+```rust
+/// Repository owner (GitHub username or organization)
+pub const REPO_OWNER: &str = "your-github-username";
+
+/// Name of the texture mod repository
+pub const REPO_NAME: &str = "your-repo-name";
+
+/// Full URL to the git repository
+pub const REPO_URL: &str = "https://github.com/your-username/your-repo-name.git";
+
+/// The target folder name (typically the PS2 game identifier)
+pub const SLUS_FOLDER: &str = "SLUS-XXXXX";
+
+/// Path within the repo to sparse checkout
+pub const SPARSE_PATH: &str = "textures/SLUS-XXXXX";
+```
+
+#### Frontend: `frontend/config.ts`
+
+```typescript
+/// Application title displayed in the header
+export const APP_TITLE = "Your Mod Name Textures Downloader";
+
+/// Repository owner (GitHub username or organization)
+export const REPO_OWNER = "your-github-username";
+
+/// Repository name
+export const REPO_NAME = "your-repo-name";
+
+/// The target folder name
+export const TARGET_FOLDER = "SLUS-XXXXX";
+
+/// Path within the repo to sparse checkout
+export const SPARSE_PATH = "textures/SLUS-XXXXX";
+```
+
+#### App Metadata: `src-tauri/tauri.conf.json`
+
+Update the app identifier, title, and other metadata:
+
+```json
+{
+  "productName": "Your Mod Textures Downloader",
+  "identifier": "com.yourteam.textures-downloader",
+  ...
+}
+```
+
+### Repository Structure
+
+Your texture repository should be structured as follows:
+
+```
+your-repo/
+└── textures/
+    └── SLUS-XXXXX/
+        └── replacements/
+            ├── user-customs/     <- Users put custom textures here (never modified by sync)
+            └── ...
+```
+
+### Building the App
+
+Prerequisites:
+- Node.js 20+
+- Rust (install via [rustup.rs](https://rustup.rs))
+- Platform-specific dependencies (see [Tauri Prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites))
+
+```bash
+# Install dependencies
+npm install
+
+# Development
+npm run tauri dev
+
+# Build for release
+npm run tauri build
+```
+
+### GitHub Actions
+
+The repository includes GitHub Actions workflows for automated builds. On each push to `main`, it builds:
+- Windows: Portable `.exe` + `resources` folder
+- macOS: `.dmg` installer (universal binary for Intel and Apple Silicon)
+
+Build artifacts are attached to each workflow run and can be downloaded from the Actions tab.
+
+### Bundling MinGit for Windows (Required)
+
+The Windows portable build requires MinGit to be manually bundled due to a Tauri resource bundling limitation. After each build:
+
+1. **Download build artifacts** from GitHub Actions:
+   - Download `windows-portable` artifact (contains the `.exe` and `resources` folder)
+
+2. **Download MinGit**:
+   - Get MinGit from [git-for-windows/git releases](https://github.com/git-for-windows/git/releases)
+   - Download the file named `MinGit-X.XX.X-64-bit.zip` (64-bit version)
+
+3. **Extract and add MinGit**:
+   - Extract the MinGit zip - it contains folders like `cmd/`, `etc/`, `mingw64/`, `usr/`
+   - Create the folder structure: `resources/mingit/x64/`
+   - Copy all MinGit contents into `resources/mingit/x64/` so you have:
+     ```
+     resources/
+     ├── icon.ico
+     └── mingit/
+         └── x64/
+             ├── cmd/
+             │   └── git.exe    <- This is what the app looks for
+             ├── etc/
+             ├── mingw64/
+             ├── usr/
+             └── LICENSE.txt
+     ```
+
+4. **Create the release zip**:
+   - Zip the `.exe` file and `resources` folder together
+   - Name it `windows-portable.zip`
+   - Attach to your GitHub release
+
+**Note**: The app looks for Git at `resources/mingit/x64/cmd/git.exe`. If this path doesn't exist, users will see an error asking them to install Git manually.
+
+### User-Customs Folder
+
+Ensure your repository has a `user-customs` folder in the replacements directory. This folder should exist (can contain a `.gitkeep` file if there are no other files in it) so users have a designated safe space for their custom textures.
+
+### Syncing Your Fork with Upstream
+
+To pull bug fixes and new features from the upstream repository into your fork:
+
+```bash
+# Add upstream remote (one-time setup)
+git remote add upstream https://github.com/jd6-37/ps2-textures-downloader.git
+
+# Fetch and merge upstream changes
+git fetch upstream
+git merge upstream/main
+```
+
+If upstream has modified the config files, you'll get merge conflicts. Simply resolve them by keeping your project's values:
 
 A GitHub Personal Access Token is required for the sync features. Here's how to get one:
 
