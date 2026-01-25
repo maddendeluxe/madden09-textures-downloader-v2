@@ -14,6 +14,7 @@ This is a companion app for the [NCAA NEXT](https://www.ncaanext.com) mod that i
 - [Using the App](#usage)
   - [First Time Setup](#usage--setup)
   - [Updating and Syncing](#usage--sync)
+- [Uninstalling](#uninstalling)
 - [License](#license)
 
 ---
@@ -147,6 +148,21 @@ A GitHub Personal Access Token is required for the sync features. Here's how to 
 6. Paste the token into the app's GitHub API Token field and click Save.
 
 <img src="assets/screenshot-apikey.jpg" alt="Screenshot of github api screen." width="400">
+
+---
+
+## Uninstalling <a name="uninstalling"></a>
+
+#### Uninstalling (Windows)
+
+1. Delete the app folder you extracted
+2. To remove saved settings, delete `%LOCALAPPDATA%\com.PROJECTNAME.textures-downloader` (paste this path
+  in File Explorer's address bar)
+
+#### Uninstalling (MacOS)
+
+1. Delete the app from Applications
+2. Delete `~/Library/Application Support/com.PROJECTNAME.textures-downloader`
 
 ---
 
