@@ -365,7 +365,13 @@ fn run_git_with_pty(
         v
     };
 
-    let command_line = format!("{} {}", git_path, full_args.join(" "));
+    // Quote git_path if it contains spaces
+    let quoted_git_path = if git_path.contains(' ') {
+        format!("\"{}\"", git_path)
+    } else {
+        git_path.to_string()
+    };
+    let command_line = format!("{} {}", quoted_git_path, full_args.join(" "));
 
     // Spawn process using ConPTY (Windows Pseudo Console)
     // This makes git think it's connected to a real terminal
