@@ -38,15 +38,6 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Debug - Check mingit files (Windows)
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          echo "=== Checking mingit folder ==="
-          if (Test-Path "src-tauri/mingit") { Get-ChildItem "src-tauri/mingit" } else { echo "mingit folder not found" }
-          if (Test-Path "src-tauri/mingit/x64/cmd") { Get-ChildItem "src-tauri/mingit/x64/cmd" } else { echo "x64/cmd folder not found" }
-          if (Test-Path "src-tauri/mingit/x64") { (Get-ChildItem "src-tauri/mingit/x64" -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB } else { echo "Cannot calculate size" }
-
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -62,22 +53,6 @@ jobs:
           path: |
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
             src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
-
-      - name: Debug - Check bundle contents (Windows)
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          echo "=== Checking NSIS bundle folder ==="
-          Get-ChildItem "src-tauri/target/release/bundle/nsis/" -Recurse | Select-Object FullName, Length
-          echo "=== Checking release folder for resources ==="
-          if (Test-Path "src-tauri/target/release/resources") { Get-ChildItem "src-tauri/target/release/resources" -Recurse | Select-Object FullName, Length } else { echo "No resources folder in release" }
-
-      - name: Upload artifacts (Windows NSIS Installer)
-        if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: src-tauri/target/release/bundle/nsis/*.exe
 
       - name: Upload artifacts (Windows Portable)
         if: matrix.platform == 'windows-latest'
