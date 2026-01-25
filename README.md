@@ -1,6 +1,6 @@
-# PS2 Textures Downloader
+# NCAA NEXT Mod Textures Installer/Updater Tool 
 
-A cross-platform desktop app for PS2 mod projects that helps users download and keep up-to-date large texture replacement packs. Built with Tauri (Rust + React).
+This is a companion app for the [NCAA NEXT](https://www.ncaanext.com) mod that installs and updates the required textures pack.
 
 ## Table of Contents
 - [Features](#features)
@@ -22,7 +22,7 @@ A cross-platform desktop app for PS2 mod projects that helps users download and 
 
 ## Features <a name="features">
 
-For users of a PS2 mod that requires a massive folder of replacement textures, downloading multi-GB zip files and keeping things updated can be tedious. This app provides:
+The NCAA NEXT mod requires a massive folder of replacement textures. This app helps manage the installation and upkeep of those textures. 
 
 ### Mod Installer <a name="introduction--installer">
 
