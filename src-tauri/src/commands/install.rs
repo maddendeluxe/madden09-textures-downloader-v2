@@ -481,9 +481,14 @@ fn run_git_with_pty(
     }
 
     // Get recent output for error message
-    let error_context = recent_lines.lock()
+    let mut error_context = recent_lines.lock()
         .map(|lines| lines.join("\n"))
         .unwrap_or_default();
+
+    // If command failed, include the command line for debugging
+    if exit_code != 0 {
+        error_context.push_str(&format!("\n\n[Debug] Command: {}", command_line));
+    }
 
     // Exit code 0 means success
     Ok((exit_code == 0, error_context))
@@ -548,9 +553,9 @@ pub async fn start_installation(textures_dir: String, window: Window) -> Result<
     if !clone_success {
         let _ = fs::remove_dir_all(&temp_path);
         let error_msg = if clone_output.is_empty() {
-            "Git clone failed. Please check your internet connection.".to_string()
+            "Git clone has failed. Please check your internet connection.".to_string()
         } else {
-            format!("Git clone failed:\n{}", clone_output)
+            format!("Git clone has failed:\n{}", clone_output)
         };
         return Err(error_msg);
     }
