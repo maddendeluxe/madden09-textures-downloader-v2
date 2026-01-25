@@ -56,12 +56,9 @@ fn get_git_path() -> Result<String, String> {
         if !is_arm {
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
-                    // Tauri converts "../" to "_up_" in resource paths
-                    // So "../src/mingit/x64/" becomes "_up_/src/mingit/x64/"
+                    // MinGit is bundled at resources/mingit/x64/
                     let mingit_path = exe_dir
                         .join("resources")
-                        .join("_up_")
-                        .join("src")
                         .join("mingit")
                         .join("x64")
                         .join("cmd")
@@ -69,18 +66,6 @@ fn get_git_path() -> Result<String, String> {
 
                     if mingit_path.exists() {
                         return Ok(mingit_path.to_string_lossy().to_string());
-                    }
-
-                    // Try legacy path structure (mingit/x64)
-                    let mingit_path_legacy = exe_dir
-                        .join("resources")
-                        .join("mingit")
-                        .join("x64")
-                        .join("cmd")
-                        .join("git.exe");
-
-                    if mingit_path_legacy.exists() {
-                        return Ok(mingit_path_legacy.to_string_lossy().to_string());
                     }
                 }
             }
@@ -98,7 +83,6 @@ fn get_git_path() -> Result<String, String> {
             let mut err_msg = String::from("Git not found. Searched locations:\n");
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
-                    err_msg.push_str(&format!("  - {}\\resources\\_up_\\src\\mingit\\x64\\cmd\\git.exe\n", exe_dir.display()));
                     err_msg.push_str(&format!("  - {}\\resources\\mingit\\x64\\cmd\\git.exe\n", exe_dir.display()));
                 }
             }

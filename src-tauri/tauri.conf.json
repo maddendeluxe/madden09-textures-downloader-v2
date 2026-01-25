@@ -35,7 +35,7 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "../src/mingit/x64/"
+      "mingit/x64/"
     ],
     "windows": {
       "nsis": {
