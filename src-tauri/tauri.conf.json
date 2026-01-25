@@ -35,7 +35,11 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "mingit/x64/"
+      "mingit/x64/cmd/",
+      "mingit/x64/etc/",
+      "mingit/x64/mingw64/",
+      "mingit/x64/usr/",
+      "mingit/x64/LICENSE.txt"
     ],
     "windows": {
       "nsis": {

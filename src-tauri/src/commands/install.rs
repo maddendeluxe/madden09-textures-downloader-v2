@@ -56,16 +56,20 @@ fn get_git_path() -> Result<String, String> {
         if !is_arm {
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
-                    // MinGit is bundled at resources/mingit/x64/
-                    let mingit_path = exe_dir
-                        .join("resources")
-                        .join("mingit")
-                        .join("x64")
-                        .join("cmd")
-                        .join("git.exe");
+                    // Try multiple possible resource paths
+                    let paths_to_try = [
+                        // Full nested path
+                        exe_dir.join("resources").join("mingit").join("x64").join("cmd").join("git.exe"),
+                        // Flattened cmd folder
+                        exe_dir.join("resources").join("cmd").join("git.exe"),
+                        // Direct in resources
+                        exe_dir.join("resources").join("git.exe"),
+                    ];
 
-                    if mingit_path.exists() {
-                        return Ok(mingit_path.to_string_lossy().to_string());
+                    for mingit_path in &paths_to_try {
+                        if mingit_path.exists() {
+                            return Ok(mingit_path.to_string_lossy().to_string());
+                        }
                     }
                 }
             }
@@ -84,6 +88,8 @@ fn get_git_path() -> Result<String, String> {
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
                     err_msg.push_str(&format!("  - {}\\resources\\mingit\\x64\\cmd\\git.exe\n", exe_dir.display()));
+                    err_msg.push_str(&format!("  - {}\\resources\\cmd\\git.exe\n", exe_dir.display()));
+                    err_msg.push_str(&format!("  - {}\\resources\\git.exe\n", exe_dir.display()));
                 }
             }
             err_msg.push_str("  - System PATH\n");

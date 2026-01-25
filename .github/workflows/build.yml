@@ -63,6 +63,15 @@ jobs:
             src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
             src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
 
+      - name: Debug - Check bundle contents (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          echo "=== Checking NSIS bundle folder ==="
+          Get-ChildItem "src-tauri/target/release/bundle/nsis/" -Recurse | Select-Object FullName, Length
+          echo "=== Checking release folder for resources ==="
+          if (Test-Path "src-tauri/target/release/resources") { Get-ChildItem "src-tauri/target/release/resources" -Recurse | Select-Object FullName, Length } else { echo "No resources folder in release" }
+
       - name: Upload artifacts (Windows NSIS Installer)
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
