@@ -91,11 +91,6 @@ The dash prefix "disables" the texture - the emulator ignores it, but the app st
 2. Open the DMG and drag the app to your Applications folder
 3. On first launch, right-click the app and select "Open" to bypass Gatekeeper. In some cases you might need to go to Setting > Privacy & Security, scroll down, and allow the app to run in the Security settings section.
 
-**Requirements**: Git must be installed. If you don't have it, install Xcode Command Line Tools by running in Terminal:
-```bash
-xcode-select --install
-```
-
 #### Updating the App (macOS)
 
 Simply download the new `.dmg` and drag the app to your Applications folder, replacing the old version. Your settings are stored in your user Library folder and will be preserved.
