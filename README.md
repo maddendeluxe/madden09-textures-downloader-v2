@@ -156,13 +156,13 @@ A GitHub Personal Access Token is required for the sync features. Here's how to 
 #### Uninstalling (Windows)
 
 1. Delete the app folder you extracted
-2. To remove saved settings, delete `%LOCALAPPDATA%\com.PROJECTNAME.textures-downloader` (paste this path
+2. To remove saved settings, delete `%LOCALAPPDATA%\com.ncaanext.textures-downloader` (paste this path
   in File Explorer's address bar)
 
 #### Uninstalling (MacOS)
 
 1. Delete the app from Applications
-2. Delete `~/Library/Application Support/com.PROJECTNAME.textures-downloader`
+2. Delete `~/Library/Application Support/com.ncaanext.textures-downloader`
 
 ---
 
