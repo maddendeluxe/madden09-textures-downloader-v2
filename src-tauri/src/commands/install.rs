@@ -44,30 +44,40 @@ pub struct ProgressPayload {
 }
 
 /// Get the path to git executable
-/// On Windows, use bundled MinGit if available
+/// On Windows x64, use bundled MinGit if available
+/// On Windows ARM, require system git
 /// On macOS, use system git
 fn get_git_path() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
-        // Check for bundled MinGit first
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
-                // Check architecture
-                let arch = if cfg!(target_arch = "aarch64") {
-                    "arm64"
-                } else {
-                    "x64"
-                };
+        let is_arm = cfg!(target_arch = "aarch64");
 
-                let mingit_path = exe_dir
-                    .join("resources")
-                    .join("mingit")
-                    .join(arch)
-                    .join("cmd")
-                    .join("git.exe");
+        // On x64, check for bundled MinGit first
+        if !is_arm {
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(exe_dir) = exe_path.parent() {
+                    // Try resources subdirectory first (installed app)
+                    let mingit_path = exe_dir
+                        .join("resources")
+                        .join("mingit")
+                        .join("x64")
+                        .join("cmd")
+                        .join("git.exe");
 
-                if mingit_path.exists() {
-                    return Ok(mingit_path.to_string_lossy().to_string());
+                    if mingit_path.exists() {
+                        return Ok(mingit_path.to_string_lossy().to_string());
+                    }
+
+                    // Try direct mingit subdirectory (alternative layout)
+                    let mingit_path_alt = exe_dir
+                        .join("mingit")
+                        .join("x64")
+                        .join("cmd")
+                        .join("git.exe");
+
+                    if mingit_path_alt.exists() {
+                        return Ok(mingit_path_alt.to_string_lossy().to_string());
+                    }
                 }
             }
         }
@@ -77,7 +87,21 @@ fn get_git_path() -> Result<String, String> {
             return Ok("git".to_string());
         }
 
-        Err("Git not found. Please ensure MinGit is bundled with the app or install Git.".to_string())
+        // Build error message based on architecture
+        if is_arm {
+            Err("Git not found. On Windows ARM, please install Git manually from https://git-scm.com/download/win".to_string())
+        } else {
+            let mut err_msg = String::from("Git not found. Searched locations:\n");
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(exe_dir) = exe_path.parent() {
+                    err_msg.push_str(&format!("  - {}\\resources\\mingit\\x64\\cmd\\git.exe\n", exe_dir.display()));
+                    err_msg.push_str(&format!("  - {}\\mingit\\x64\\cmd\\git.exe\n", exe_dir.display()));
+                }
+            }
+            err_msg.push_str("  - System PATH\n");
+            err_msg.push_str("\nPlease reinstall the app or install Git from https://git-scm.com/download/win");
+            Err(err_msg)
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
