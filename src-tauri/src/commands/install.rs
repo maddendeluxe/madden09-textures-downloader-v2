@@ -59,6 +59,7 @@ fn get_git_path() -> Result<String, String> {
                     "x64"
                 };
 
+                // Try resources subdirectory first (installed app)
                 let mingit_path = exe_dir
                     .join("resources")
                     .join("mingit")
@@ -69,6 +70,17 @@ fn get_git_path() -> Result<String, String> {
                 if mingit_path.exists() {
                     return Ok(mingit_path.to_string_lossy().to_string());
                 }
+
+                // Try direct mingit subdirectory (alternative layout)
+                let mingit_path_alt = exe_dir
+                    .join("mingit")
+                    .join(arch)
+                    .join("cmd")
+                    .join("git.exe");
+
+                if mingit_path_alt.exists() {
+                    return Ok(mingit_path_alt.to_string_lossy().to_string());
+                }
             }
         }
 
@@ -77,7 +89,18 @@ fn get_git_path() -> Result<String, String> {
             return Ok("git".to_string());
         }
 
-        Err("Git not found. Please ensure MinGit is bundled with the app or install Git.".to_string())
+        // Build detailed error message showing where we looked
+        let mut err_msg = String::from("Git not found. Searched locations:\n");
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let arch = if cfg!(target_arch = "aarch64") { "arm64" } else { "x64" };
+                err_msg.push_str(&format!("  - {}\\resources\\mingit\\{}\\cmd\\git.exe\n", exe_dir.display(), arch));
+                err_msg.push_str(&format!("  - {}\\mingit\\{}\\cmd\\git.exe\n", exe_dir.display(), arch));
+            }
+        }
+        err_msg.push_str("  - System PATH\n");
+        err_msg.push_str("\nPlease reinstall the app or install Git manually.");
+        Err(err_msg)
     }
 
     #[cfg(not(target_os = "windows"))]
