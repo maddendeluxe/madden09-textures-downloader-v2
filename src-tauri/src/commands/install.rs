@@ -365,13 +365,13 @@ fn run_git_with_pty(
         v
     };
 
-    // Quote git_path if it contains spaces
-    let quoted_git_path = if git_path.contains(' ') {
-        format!("\"{}\"", git_path)
+    // Build command line - use cmd.exe /c wrapper when path has spaces
+    // ConPTY doesn't handle quoted executable paths correctly
+    let command_line = if git_path.contains(' ') {
+        format!("cmd.exe /c \"\"{}\" {}\"", git_path, full_args.join(" "))
     } else {
-        git_path.to_string()
+        format!("{} {}", git_path, full_args.join(" "))
     };
-    let command_line = format!("{} {}", quoted_git_path, full_args.join(" "));
 
     // Spawn process using ConPTY (Windows Pseudo Console)
     // This makes git think it's connected to a real terminal
