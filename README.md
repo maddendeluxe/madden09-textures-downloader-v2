@@ -26,6 +26,8 @@ The NCAA NEXT mod requires a massive folder of replacement textures. This app he
 
 The **First Time Setup** uses Git sparse checkout to efficiently download only the texture files you need (not the entire repository). This is faster and more reliable than downloading a massive zip file, which can fail or become corrupted. The installer automatically places textures in the correct location within your emulator's textures folder.
 
+<img src="assets/screenshot-install.jpg" alt="Screenshot of first time install screen." width="400">
+
 ### Mod Updater <a name="introduction--updater">
 
 The **Sync** feature keeps your textures up-to-date with two modes:
@@ -41,9 +43,13 @@ Both modes will:
 - Preserve your disabled textures (dash-prefixed files)
 - Never touch your `user-customs` folder
 
+<img src="assets/screenshot-sync.jpg" alt="Screenshot of post-install sync screen." width="400">
+
 ### Post-Sync Verification <a name="introduction--verification">
 
 After every sync, the app performs a quick file count verification to ensure your local installation matches the repository. If a mismatch is detected, you'll be prompted to run a Full Sync to resolve discrepancies.
+
+<img src="assets/screenshot-verification.jpg" alt="Screenshot of post-sync verification." width="400">
 
 ---
 
@@ -118,6 +124,8 @@ The installer uses Git sparse checkout to efficiently download only the texture 
 xcode-select --install
 ```
 
+<img src="assets/screenshot-installdone.jpg" alt="Screenshot of installation complete screen." width="400">
+
 ### Updating and Syncing <a name="usage--sync">
 
 1. Select the **Sync** tab
@@ -127,169 +135,24 @@ xcode-select --install
    - **Full Sync**: Compares all files, slower but thorough (use occasionally or when troubleshooting)
 4. Click **Run Sync**
 
+<img src="assets/screenshot-syncmodes.jpg" alt="Screenshot of sync mode options." width="400">
+
 **Warning Dialogs**: When running a Full Sync, if files will be replaced or deleted, you'll see a warning dialog listing the affected files. This gives you a chance to back up any custom textures to the `user-customs` folder before proceeding.
 
----
+<img src="assets/screenshot-warning.jpg" alt="Screenshot of file deletion warning." width="400">
 
-## For Mod Teams: Customizing for Your Project
-
-This app is open-source and can be customized for any PS2 texture replacement mod. Fork the repository and modify the configuration files for your project before building your apps.
-
-### Configuration Files
-
-You need to update two configuration files:
-
-#### Backend: `src-tauri/src/config.rs`
-
-```rust
-/// Repository owner (GitHub username or organization)
-pub const REPO_OWNER: &str = "your-github-username";
-
-/// Name of the texture mod repository
-pub const REPO_NAME: &str = "your-repo-name";
-
-/// Full URL to the git repository
-pub const REPO_URL: &str = "https://github.com/your-username/your-repo-name.git";
-
-/// The target folder name (typically the PS2 game identifier)
-pub const SLUS_FOLDER: &str = "SLUS-XXXXX";
-
-/// Path within the repo to sparse checkout
-pub const SPARSE_PATH: &str = "textures/SLUS-XXXXX";
-```
-
-#### Frontend: `frontend/config.ts`
-
-```typescript
-/// Application title displayed in the header
-export const APP_TITLE = "Your Mod Name Textures Downloader";
-
-/// Repository owner (GitHub username or organization)
-export const REPO_OWNER = "your-github-username";
-
-/// Repository name
-export const REPO_NAME = "your-repo-name";
-
-/// The target folder name
-export const TARGET_FOLDER = "SLUS-XXXXX";
-
-/// Path within the repo to sparse checkout
-export const SPARSE_PATH = "textures/SLUS-XXXXX";
-```
-
-#### App Metadata: `src-tauri/tauri.conf.json`
-
-Update the app identifier, title, and other metadata:
-
-```json
-{
-  "productName": "Your Mod Textures Downloader",
-  "identifier": "com.yourteam.textures-downloader",
-  ...
-}
-```
-
-### Repository Structure
-
-Your texture repository should be structured as follows:
-
-```
-your-repo/
-└── textures/
-    └── SLUS-XXXXX/
-        └── replacements/
-            ├── user-customs/     <- Users put custom textures here (never modified by sync)
-            └── ...
-```
-
-### Building the App
-
-Prerequisites:
-- Node.js 20+
-- Rust (install via [rustup.rs](https://rustup.rs))
-- Platform-specific dependencies (see [Tauri Prerequisites](https://tauri.app/v1/guides/getting-started/prerequisites))
-
-```bash
-# Install dependencies
-npm install
-
-# Development
-npm run tauri dev
-
-# Build for release
-npm run tauri build
-```
-
-### GitHub Actions
-
-The repository includes GitHub Actions workflows for automated builds. On each push to `main`, it builds:
-- Windows: Portable `.exe` + `resources` folder
-- macOS: `.dmg` installer (universal binary for Intel and Apple Silicon)
-
-Build artifacts are attached to each workflow run and can be downloaded from the Actions tab.
-
-### Bundling MinGit for Windows (Required)
-
-The Windows portable build requires MinGit to be manually bundled due to a Tauri resource bundling limitation. After each build:
-
-1. **Download build artifacts** from GitHub Actions:
-   - Download `windows-portable` artifact (contains the `.exe` and `resources` folder)
-
-2. **Download MinGit**:
-   - Get MinGit from [git-for-windows/git releases](https://github.com/git-for-windows/git/releases)
-   - Download the file named `MinGit-X.XX.X-64-bit.zip` (64-bit version)
-
-3. **Extract and add MinGit**:
-   - Extract the MinGit zip - it contains folders like `cmd/`, `etc/`, `mingw64/`, `usr/`
-   - Create the folder structure: `resources/mingit/x64/`
-   - Copy all MinGit contents into `resources/mingit/x64/` so you have:
-     ```
-     resources/
-     ├── icon.ico
-     └── mingit/
-         └── x64/
-             ├── cmd/
-             │   └── git.exe    <- This is what the app looks for
-             ├── etc/
-             ├── mingw64/
-             ├── usr/
-             └── LICENSE.txt
-     ```
-
-4. **Create the release zip**:
-   - Zip the `.exe` file and `resources` folder together
-   - Name it `windows-portable.zip`
-   - Attach to your GitHub release
-
-**Note**: The app looks for Git at `resources/mingit/x64/cmd/git.exe`. If this path doesn't exist, users will see an error asking them to install Git manually.
-
-### User-Customs Folder
-
-Ensure your repository has a `user-customs` folder in the replacements directory. This folder should exist (can contain a `.gitkeep` file if there are no other files in it) so users have a designated safe space for their custom textures.
-
-### Syncing Your Fork with Upstream
-
-To pull bug fixes and new features from the upstream repository into your fork:
-
-```bash
-# Add upstream remote (one-time setup)
-git remote add upstream https://github.com/jd6-37/ps2-textures-downloader.git
-
-# Fetch and merge upstream changes
-git fetch upstream
-git merge upstream/main
-```
-
-If upstream has modified the config files, you'll get merge conflicts. Simply resolve them by keeping your project's values:
+#### GitHub API Token (Required for Sync)
 
 A GitHub Personal Access Token is required for the sync features. Here's how to get one:
 
 1. Create a free Github account, if needed, and generate a "Fine-Grained" API token. Go to Settings > Developer Settings > Personal Access Tokens > Fine-Grained Tokens > [Generate New Token](https://github.com/settings/personal-access-tokens/new?name=Textures+Downloader&description=Token+for+syncing+textures&expires_in=365).
-2. Give it a name (e.g., "PS2 Textures Downloader")
+2. Give it a name (e.g., "NCAA NEXT Textures")
 3. Set expiration to 1 year (maximum)
 4. **No permissions are needed** - leave everything unchecked
 5. Click "Generate Token" and copy it
 6. Paste the token into the app's GitHub API Token field and click Save.
+
+<img src="assets/screenshot-apikey.jpg" alt="Screenshot of github api screen." width="400">
 
 ---
 
