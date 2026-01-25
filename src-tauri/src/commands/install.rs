@@ -8,7 +8,7 @@ use std::process::{Command, Stdio};
 #[cfg(target_os = "windows")]
 use std::process::Command;
 use std::fs;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Window};
 
 // Track running process PIDs so we can kill them on app exit
@@ -167,7 +167,14 @@ fn detect_git_stage(line: &str) -> (Option<&'static str>, Option<u32>) {
 /// Read output handling both \r and \n as line terminators
 /// Git uses \r to update progress on the same line
 /// When detect_stages is false, always uses default_stage
-fn read_output_with_progress<R: IoRead>(reader: R, window: &Window, default_stage: &str, detect_stages: bool) {
+/// Returns the last few lines of output for error reporting
+fn read_output_with_progress<R: IoRead>(
+    reader: R,
+    window: &Window,
+    default_stage: &str,
+    detect_stages: bool,
+    recent_lines: Option<Arc<Mutex<Vec<String>>>>
+) {
     let mut buf_reader = BufReader::new(reader);
     let mut buffer = Vec::new();
     let mut byte = [0u8; 1];
@@ -181,6 +188,17 @@ fn read_output_with_progress<R: IoRead>(reader: R, window: &Window, default_stag
                         if let Ok(line) = String::from_utf8(buffer.clone()) {
                             let line = strip_ansi_codes(line.trim());
                             if !line.is_empty() {
+                                // Store recent lines for error reporting
+                                if let Some(ref lines) = recent_lines {
+                                    if let Ok(mut lines) = lines.lock() {
+                                        lines.push(line.clone());
+                                        // Keep only the last 10 lines
+                                        if lines.len() > 10 {
+                                            lines.remove(0);
+                                        }
+                                    }
+                                }
+
                                 let (detected_stage, percent) = detect_git_stage(&line);
                                 let stage = if detect_stages {
                                     detected_stage.unwrap_or(default_stage)
@@ -213,6 +231,16 @@ fn read_output_with_progress<R: IoRead>(reader: R, window: &Window, default_stag
         if let Ok(line) = String::from_utf8(buffer) {
             let line = strip_ansi_codes(line.trim());
             if !line.is_empty() {
+                // Store recent lines for error reporting
+                if let Some(ref lines) = recent_lines {
+                    if let Ok(mut lines) = lines.lock() {
+                        lines.push(line.clone());
+                        if lines.len() > 10 {
+                            lines.remove(0);
+                        }
+                    }
+                }
+
                 let (detected_stage, percent) = detect_git_stage(&line);
                 let stage = if detect_stages {
                     detected_stage.unwrap_or(default_stage)
@@ -237,6 +265,7 @@ fn read_output_with_progress<R: IoRead>(reader: R, window: &Window, default_stag
 /// This ensures git outputs progress even when not connected to a real terminal
 /// Uses caffeinate to prevent system sleep during long operations
 /// When detect_stages is false, always uses default_stage instead of detecting from output
+/// Returns Ok(true) on success, Ok(false) on failure with error details, or Err on spawn failure
 #[cfg(not(target_os = "windows"))]
 fn run_git_with_pty(
     git_path: &str,
@@ -245,7 +274,7 @@ fn run_git_with_pty(
     window: &Window,
     default_stage: &str,
     detect_stages: bool,
-) -> Result<bool, String> {
+) -> Result<(bool, String), String> {
     // Use 'caffeinate' to prevent sleep, 'script' to create a PTY for git
     // caffeinate -d: prevent display sleep (also prevents screensaver)
     // script -q /dev/null: create PTY without saving typescript
@@ -260,21 +289,30 @@ fn run_git_with_pty(
         .spawn()
         .map_err(|e| format!("Failed to start command: {}", e))?;
 
+    // Collect recent output for error reporting
+    let recent_lines = Arc::new(Mutex::new(Vec::<String>::new()));
+
     // script command outputs everything to stdout (including what would normally be stderr)
     if let Some(stdout) = cmd.stdout.take() {
-        read_output_with_progress(stdout, window, default_stage, detect_stages);
+        read_output_with_progress(stdout, window, default_stage, detect_stages, Some(recent_lines.clone()));
     }
 
     let status = cmd
         .wait()
         .map_err(|e| format!("Command failed: {}", e))?;
 
-    Ok(status.success())
+    // Get recent output for error message
+    let error_context = recent_lines.lock()
+        .map(|lines| lines.join("\n"))
+        .unwrap_or_default();
+
+    Ok((status.success(), error_context))
 }
 
 /// Run a git command on Windows using ConPTY for proper progress output
 /// Uses SetThreadExecutionState to prevent system sleep during long operations
 /// When detect_stages is false, always uses default_stage instead of detecting from output
+/// Returns Ok((true, _)) on success, Ok((false, error_context)) on failure, or Err on spawn failure
 #[cfg(target_os = "windows")]
 fn run_git_with_pty(
     git_path: &str,
@@ -283,7 +321,7 @@ fn run_git_with_pty(
     window: &Window,
     default_stage: &str,
     detect_stages: bool,
-) -> Result<bool, String> {
+) -> Result<(bool, String), String> {
     use conpty::spawn;
     use std::io::Read as _;
     use windows::Win32::System::Power::{SetThreadExecutionState, ES_CONTINUOUS, ES_SYSTEM_REQUIRED, ES_DISPLAY_REQUIRED};
@@ -353,6 +391,10 @@ fn run_git_with_pty(
     let window_clone = window.clone();
     let default_stage_owned = default_stage.to_string();
 
+    // Collect recent output for error reporting
+    let recent_lines = Arc::new(Mutex::new(Vec::<String>::new()));
+    let recent_lines_clone = recent_lines.clone();
+
     let reader_handle = std::thread::spawn(move || {
         let mut output = output;
         let mut buffer = [0u8; 1];
@@ -366,9 +408,17 @@ fn run_git_with_pty(
                     if byte == b'\r' || byte == b'\n' {
                         if !line_buffer.is_empty() {
                             if let Ok(line) = String::from_utf8(line_buffer.clone()) {
-                                let line = line.trim();
+                                let line = line.trim().to_string();
                                 if !line.is_empty() {
-                                    let (detected_stage, percent) = detect_git_stage(line);
+                                    // Store recent lines for error reporting
+                                    if let Ok(mut lines) = recent_lines_clone.lock() {
+                                        lines.push(line.clone());
+                                        if lines.len() > 10 {
+                                            lines.remove(0);
+                                        }
+                                    }
+
+                                    let (detected_stage, percent) = detect_git_stage(&line);
                                     let stage = if detect_stages {
                                         detected_stage.unwrap_or(&default_stage_owned)
                                     } else {
@@ -379,7 +429,7 @@ fn run_git_with_pty(
                                         "install-progress",
                                         ProgressPayload {
                                             stage: stage.to_string(),
-                                            message: line.to_string(),
+                                            message: line,
                                             percent,
                                         },
                                     );
@@ -424,8 +474,13 @@ fn run_git_with_pty(
         SetThreadExecutionState(ES_CONTINUOUS);
     }
 
+    // Get recent output for error message
+    let error_context = recent_lines.lock()
+        .map(|lines| lines.join("\n"))
+        .unwrap_or_default();
+
     // Exit code 0 means success
-    Ok(exit_code == 0)
+    Ok((exit_code == 0, error_context))
 }
 
 /// Run the git sparse checkout installation
@@ -467,7 +522,7 @@ pub async fn start_installation(textures_dir: String, window: Window) -> Result<
         },
     );
 
-    let clone_success = run_git_with_pty(
+    let (clone_success, clone_output) = run_git_with_pty(
         &git_path,
         &[
             "clone",
@@ -486,7 +541,12 @@ pub async fn start_installation(textures_dir: String, window: Window) -> Result<
 
     if !clone_success {
         let _ = fs::remove_dir_all(&temp_path);
-        return Err("Git clone failed. Please check your internet connection.".to_string());
+        let error_msg = if clone_output.is_empty() {
+            "Git clone failed. Please check your internet connection.".to_string()
+        } else {
+            format!("Git clone failed:\n{}", clone_output)
+        };
+        return Err(error_msg);
     }
 
     // Stage 2: Set sparse checkout path - THIS IS THE MAIN DOWNLOAD
@@ -499,7 +559,7 @@ pub async fn start_installation(textures_dir: String, window: Window) -> Result<
         },
     );
 
-    let checkout_success = run_git_with_pty(
+    let (checkout_success, checkout_output) = run_git_with_pty(
         &git_path,
         &["sparse-checkout", "set", SPARSE_PATH],
         &temp_path,
@@ -510,7 +570,12 @@ pub async fn start_installation(textures_dir: String, window: Window) -> Result<
 
     if !checkout_success {
         let _ = fs::remove_dir_all(&temp_path);
-        return Err("Sparse checkout failed.".to_string());
+        let error_msg = if checkout_output.is_empty() {
+            "Sparse checkout failed.".to_string()
+        } else {
+            format!("Sparse checkout failed:\n{}", checkout_output)
+        };
+        return Err(error_msg);
     }
 
     // Stage 3: Move folder to final location
