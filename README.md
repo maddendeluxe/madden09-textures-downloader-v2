@@ -322,6 +322,8 @@ The Windows portable build requires MinGit to be manually bundled due to a Tauri
 
 Ensure your repository has a `user-customs` folder in the replacements directory. This folder should exist (can contain a `.gitkeep` file if there are no other files in it) so users have a designated safe space for their custom textures.
 
+**Note**: The app protects any folder containing "user-customs" in its name, so variations like `aaa-user-customs` or `-user-customs` will also be protected from sync operations.
+
 ### Syncing Your Fork with Upstream
 
 To pull bug fixes and new features from the upstream repository into your fork:
