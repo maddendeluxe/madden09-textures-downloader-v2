@@ -239,6 +239,24 @@ your-repo/
             └── ...
 ```
 
+### installer-data.json (Required)
+
+Your texture repository must include an `installer-data.json` file in the root:
+
+```json
+{
+  "min_download_app_version": "2.0.0",
+  "total_size": 8.5,
+  "downloader_app_url": "https://your-download-page.com"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `min_download_app_version` | Minimum app version required (must be a string, e.g. `"2.0.0"`). If a user's app is older, they'll see a blocking modal prompting them to update. |
+| `total_size` | Displayed as "Estimated download size: X GB" on the Install tab. Accepts string or number. |
+| `downloader_app_url` | URL opened when users click "Download Latest Version" in the outdated app modal. |
+
 ### Building the App
 
 Prerequisites:
