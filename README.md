@@ -232,11 +232,13 @@ Your texture repository should be structured as follows:
 
 ```
 your-repo/
+└── installer-data.json
 └── textures/
     └── SLUS-XXXXX/
         └── replacements/
-            ├── user-customs/     <- Users put custom textures here (never modified by sync)
+            ├── user-customs/     <- Users put custom textures here (never modified by sync. details below)
             └── ...
+└── (anything else you want)
 ```
 
 ### installer-data.json (Required)
