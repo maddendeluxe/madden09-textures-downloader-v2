@@ -19,12 +19,14 @@ where
 /// Installer data from the mod repository
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InstallerData {
-    /// Minimum required version of this downloader app
+    /// Minimum required version of this download app
     #[serde(deserialize_with = "string_or_number")]
-    pub min_downloader_app_version: String,
+    pub min_download_app_version: String,
     /// Total size of the texture pack (e.g., "8.5 GB" or just "22.5")
     #[serde(deserialize_with = "string_or_number")]
     pub total_size: String,
+    /// URL where users can download the latest version of the app
+    pub downloader_app_url: String,
 }
 
 /// Result of fetching installer data

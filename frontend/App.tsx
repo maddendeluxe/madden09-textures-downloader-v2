@@ -18,8 +18,9 @@ interface AppState {
 }
 
 interface InstallerData {
-  min_downloader_app_version: string;
+  min_download_app_version: string;
   total_size: string;
+  downloader_app_url: string;
 }
 
 interface InstallerDataResult {
@@ -119,13 +120,13 @@ function App() {
           // Check version compatibility
           const comparison = await invoke<number>("compare_versions", {
             v1: version,
-            v2: result.data.min_downloader_app_version,
+            v2: result.data.min_download_app_version,
           });
 
           if (comparison < 0) {
             // App is outdated
             setIsAppOutdated(true);
-            setRequiredVersion(result.data.min_downloader_app_version);
+            setRequiredVersion(result.data.min_download_app_version);
           }
         }
       } catch (e) {
@@ -154,12 +155,12 @@ function App() {
         if (appVersion) {
           const comparison = await invoke<number>("compare_versions", {
             v1: appVersion,
-            v2: result.data.min_downloader_app_version,
+            v2: result.data.min_download_app_version,
           });
 
           if (comparison < 0) {
             setIsAppOutdated(true);
-            setRequiredVersion(result.data.min_downloader_app_version);
+            setRequiredVersion(result.data.min_download_app_version);
           }
         }
       }
@@ -269,6 +270,7 @@ function App() {
         <AppOutdatedModal
           currentVersion={appVersion}
           requiredVersion={requiredVersion}
+          downloaderAppUrl={installerData?.downloader_app_url || ""}
         />
       </div>
     );

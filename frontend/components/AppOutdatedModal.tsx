@@ -1,17 +1,14 @@
-import { REPO_OWNER, REPO_NAME } from "../config";
-
 interface AppOutdatedModalProps {
   currentVersion: string;
   requiredVersion: string;
+  downloaderAppUrl: string;
 }
 
-function AppOutdatedModal({ currentVersion, requiredVersion }: AppOutdatedModalProps) {
-  const releasesUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`;
-
-  const handleOpenReleases = () => {
+function AppOutdatedModal({ currentVersion, requiredVersion, downloaderAppUrl }: AppOutdatedModalProps) {
+  const handleOpenDownloadPage = () => {
     // Use Tauri's shell opener to open the URL
     import("@tauri-apps/plugin-opener").then(({ openUrl }) => {
-      openUrl(releasesUrl);
+      openUrl(downloaderAppUrl);
     });
   };
 
@@ -55,7 +52,7 @@ function AppOutdatedModal({ currentVersion, requiredVersion }: AppOutdatedModalP
         </div>
 
         <button
-          onClick={handleOpenReleases}
+          onClick={handleOpenDownloadPage}
           className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors"
         >
           Download Latest Version
