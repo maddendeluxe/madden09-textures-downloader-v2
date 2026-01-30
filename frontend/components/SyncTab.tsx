@@ -451,7 +451,7 @@ function SyncTab({
         <div className="p-3 bg-yellow-900/30 border border-yellow-700 rounded text-yellow-300 text-sm">
           A GitHub API key is required for syncing.{" "}
           <a
-            href="https://github.com/settings/personal-access-tokens/new?name=NCAA+NEXT+Textures+Downloader&description=Token+for+syncing+textures&expires_in=365"
+            href="https://github.com/settings/personal-access-tokens/new?name=Textures+Downloader&description=Token+for+syncing+textures&expires_in=365"
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-400 hover:text-blue-300 underline"
