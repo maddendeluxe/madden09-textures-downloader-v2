@@ -4,22 +4,22 @@
 
 /// Application title (also update in tauri.conf.json and frontend/config.ts)
 #[allow(dead_code)]
-pub const APP_TITLE: &str = "NCAA NEXT Textures Downloader";
+pub const APP_TITLE: &str = "Madden 09 Deluxe Downloader";
 
 /// Repository owner (GitHub username or organization)
-pub const REPO_OWNER: &str = "ncaanext";
+pub const REPO_OWNER: &str = "maddendeluxe";
 
 /// Name of the texture mod repository
-pub const REPO_NAME: &str = "ncaa-next-26";
+pub const REPO_NAME: &str = "madden09deluxe";
 
 /// Full URL to the git repository
-pub const REPO_URL: &str = "https://github.com/ncaanext/ncaa-next-26.git";
+pub const REPO_URL: &str = "https://github.com/maddendeluxe/madden09deluxe.git";
 
 /// The target folder name (typically the PS2 game identifier like SLUS-XXXXX)
-pub const SLUS_FOLDER: &str = "SLUS-21214";
+pub const SLUS_FOLDER: &str = "SLUS-21770";
 
 /// Path within the repo to sparse checkout
-pub const SPARSE_PATH: &str = "textures/SLUS-21214";
+pub const SPARSE_PATH: &str = "textures/SLUS-21770";
 
 /// Temporary directory name used during clone
-pub const TEMP_DIR_NAME: &str = "_temp_ncaa_repo";
+pub const TEMP_DIR_NAME: &str = "_temp_madden09deluxe_repo";

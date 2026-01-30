@@ -2123,6 +2123,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ncaanext-textures-downloader"
+version = "2.0.0"
+dependencies = [
+ "chrono",
+ "conpty",
+ "hex",
+ "regex",
+ "reqwest 0.11.27",
+ "serde",
+ "serde_json",
+ "sha1",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "tauri-plugin-shell",
+ "tokio",
+ "windows 0.58.0",
+]
+
+[[package]]
 name = "ndk"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2866,27 +2887,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "535d180e0ecab6268a3e718bb9fd44db66bbbc256257165fc699dadf70d16fe7"
 dependencies = [
  "unicode-ident",
-]
-
-[[package]]
-name = "ps2-textures-downloader"
-version = "1.0.0"
-dependencies = [
- "chrono",
- "conpty",
- "hex",
- "regex",
- "reqwest 0.11.27",
- "serde",
- "serde_json",
- "sha1",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "tauri-plugin-shell",
- "tokio",
- "windows 0.58.0",
 ]
 
 [[package]]
