@@ -61,4 +61,4 @@ jobs:
           name: windows-portable
           path: |
             src-tauri/target/release/*.exe
-            src-tauri/target/release/resources/
+            src-tauri/target/release/resources/ 
