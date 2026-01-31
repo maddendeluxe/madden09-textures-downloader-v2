@@ -1,8 +1,8 @@
 [package]
-name = "ncaanext-textures-downloader"
+name = "madden09deluxe-textures-downloader"
 version = "2.0.0"
-description = "NCAA NEXT Textures Downloader - Download and sync NCAA NEXT texture packs"
-authors = ["NCAA NEXT"]
+description = "Madden 09 Deluxe Downloader - Download and sync Madden 09 Deluxe texture packs"
+authors = ["JD6-37"]
 edition = "2021"
 
 [lib]
