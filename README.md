@@ -1,6 +1,11 @@
-# PS2 Textures Downloader
+# Madden Deluxe Texture Downloader
 
-A cross-platform desktop app for PS2 mod projects that helps users download and keep up-to-date large texture replacement packs. Built with Tauri (Rust + React).
+This is a tool to download Madden 09 & Madden 12 Deluxe Texture Installers Built with Tauri (Rust + React).
+
+| Files  | Link |
+| ------------- | ------------- |
+| Madden 09 Deluxe Tool | [Link](https://github.com/maddendeluxe/maddendeluxe-textures-downloader-v2/releases/tag/madden09deluxe) |
+| Madden 12 Deluxe Tool |  |
 
 ## Table of Contents
 - [Features](#features)
